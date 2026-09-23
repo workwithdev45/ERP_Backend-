@@ -1,0 +1,3 @@
+-- Reserved for a future audit-log table (the com.msmeerp.audit package doesn't
+-- exist yet — no entity to migrate). Kept as a placeholder so migration
+-- numbering stays stable when that feature is built.

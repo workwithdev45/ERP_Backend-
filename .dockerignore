@@ -1,0 +1,6 @@
+target/
+*.log
+run-local.ps1
+.git/
+.idea/
+*.iml

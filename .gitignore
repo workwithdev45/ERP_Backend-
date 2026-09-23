@@ -41,3 +41,7 @@ applications.yml
 
 # Local dev secrets
 run-local.ps1
+.env
+
+# Local run logs
+*.log

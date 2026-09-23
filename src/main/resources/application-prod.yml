@@ -5,7 +5,7 @@ server:
 
 spring:
   application:
-    name: hms-backend
+    name: msme-erp-backend
 
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
@@ -34,7 +34,7 @@ spring:
         default_batch_fetch_size: 25
 
   flyway:
-    enabled: false
+    enabled: true
     baseline-on-migrate: false
 
 app:
@@ -43,13 +43,14 @@ app:
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
     refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
     registration-token-expiration-ms: ${JWT_REGISTRATION_TOKEN_EXPIRATION_MS:1800000}
+    invite-token-expiration-ms: ${JWT_INVITE_TOKEN_EXPIRATION_MS:259200000}
   aws:
     region: ${AWS_REGION}
   mail:
     enabled: ${MAIL_ENABLED:true}
     from: ${MAIL_FROM}
   portal:
-    base-domain: ${PORTAL_BASE_DOMAIN:medicorehms.in}
+    base-domain: ${PORTAL_BASE_DOMAIN:msmeerp.com}
     scheme: ${PORTAL_SCHEME:https}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS}
@@ -58,4 +59,4 @@ app:
     allow-credentials: true
   multitenancy:
     header-name: X-Tenant-ID
-    default-tenant: hms-main
+    default-tenant: msmeerp-main

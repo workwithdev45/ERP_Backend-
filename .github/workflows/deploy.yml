@@ -1,0 +1,45 @@
+name: Build and push backend image
+
+# Runs on a published GitHub Release (tag = the version, e.g. v1.2.0) rather
+# than on every push — you control exactly when a new version goes out.
+#
+# CI only builds, tests, and pushes the tagged image to Docker Hub. Deploying
+# it is manual: in Portainer, update BACKEND_IMAGE in the stack's environment
+# variables to the new tag, then redeploy the stack.
+on:
+  release:
+    types: [published]
+
+env:
+  DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_USERNAME }}/msme-erp-backend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run tests
+        run: ./mvnw -B test
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push image
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          IMAGE_URI="${{ env.DOCKERHUB_REPOSITORY }}:${RELEASE_TAG}"
+          docker build -t "$IMAGE_URI" -t "${{ env.DOCKERHUB_REPOSITORY }}:latest" .
+          docker push "$IMAGE_URI"
+          docker push "${{ env.DOCKERHUB_REPOSITORY }}:latest"

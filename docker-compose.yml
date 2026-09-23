@@ -1,0 +1,37 @@
+# Portainer stack for the MSME ERP backend.
+#
+# Just the backend container — Postgres runs on its own free-tier RDS
+# instance, not bundled here. The free-tier EC2 instance (t3.micro/t2.micro)
+# only has 1GB RAM; running Postgres in the same box alongside the JVM risks
+# OOM kills. Set DB_URL below to your RDS endpoint.
+#
+# TLS + wildcard subdomain routing (tenant.yourdomain.com) is handled entirely
+# by CloudFront in front of this stack (one wildcard ACM cert, one CloudFront
+# Function that turns the Host subdomain into an X-Tenant-ID header) — so this
+# box only needs to serve plain HTTP on port 8080 for CloudFront to reach.
+# Lock the EC2 security group down to the AWS-managed
+# "com.amazonaws.global.cloudfront.origin-facing" prefix list so only
+# CloudFront (not the whole internet) can reach this port directly.
+
+services:
+  backend:
+    image: ${BACKEND_IMAGE:-msme-erp-backend:latest}
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: ${DB_URL}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      MAIL_ENABLED: ${MAIL_ENABLED:-true}
+      MAIL_FROM: ${MAIL_FROM}
+      PORTAL_BASE_DOMAIN: ${PORTAL_BASE_DOMAIN}
+      PORTAL_SCHEME: https
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
+    ports:
+      - "8080:8080"
+    # Leaves headroom for the OS/Docker daemon on a 1GB free-tier instance.
+    mem_limit: 700m
