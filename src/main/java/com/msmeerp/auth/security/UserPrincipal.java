@@ -1,6 +1,7 @@
 package com.msmeerp.auth.security;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.msmeerp.accesscontrol.entity.RoleModulePermission;
 import com.msmeerp.accesscontrol.entity.UserModulePermission;
 import com.msmeerp.user.entity.User;
 import lombok.AllArgsConstructor;
@@ -37,6 +38,12 @@ public class UserPrincipal implements UserDetails {
     }
 
     public static UserPrincipal create(User user, List<UserModulePermission> modulePermissions) {
+        return create(user, modulePermissions, Collections.emptyList());
+    }
+
+    public static UserPrincipal create(User user,
+                                       List<UserModulePermission> modulePermissions,
+                                       List<RoleModulePermission> roleModulePermissions) {
         Set<GrantedAuthority> authorities = new HashSet<>();
 
         // Add Roles + their baked-in permissions (e.g. ADMIN's full access, USER_MANAGE, ROLE_MANAGE)
@@ -46,6 +53,14 @@ public class UserPrincipal implements UserDetails {
                     authorities.add(new SimpleGrantedAuthority(permission.getName().toUpperCase()))
             );
         });
+
+        // Add per-module action grants inherited from the user's roles (e.g. SALES_VIEW for a SALES_EXEC role)
+        roleModulePermissions.forEach(roleModulePermission ->
+                roleModulePermission.getActions().forEach(action ->
+                        authorities.add(new SimpleGrantedAuthority(
+                                roleModulePermission.getModuleCode().name() + "_" + action.name()))
+                )
+        );
 
         // Add fine-grained per-user, per-module action grants (e.g. SALES_VIEW, SALES_CREATE)
         modulePermissions.forEach(modulePermission ->

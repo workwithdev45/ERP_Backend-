@@ -2,6 +2,7 @@ package com.msmeerp.auth.service.impl;
 
 import com.msmeerp.accesscontrol.entity.Permission;
 import com.msmeerp.accesscontrol.entity.Role;
+import com.msmeerp.accesscontrol.repository.RoleModulePermissionRepository;
 import com.msmeerp.accesscontrol.repository.UserModulePermissionRepository;
 import com.msmeerp.auth.dto.ForgotPasswordRequest;
 import com.msmeerp.auth.dto.LoginRequest;
@@ -58,6 +59,7 @@ public class AuthServiceImpl implements AuthService {
     private final TenantRepository tenantRepository;
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
+    private final RoleModulePermissionRepository roleModulePermissionRepository;
 
     @Value("${app.portal.base-domain:msmeerp.com}")
     private String baseDomain;
@@ -75,12 +77,20 @@ public class AuthServiceImpl implements AuthService {
                 .map(Permission::getName)
                 .collect(Collectors.toSet());
 
+        Set<Long> roleIds = user.getRoles().stream().map(Role::getId).collect(Collectors.toSet());
+        Set<String> roleModulePermissions = roleModulePermissionRepository
+                .findByTenantIdAndRoleIdIn(user.getTenantId(), roleIds).stream()
+                .flatMap(rmp -> rmp.getActions().stream()
+                        .map(action -> rmp.getModuleCode().name() + "_" + action.name()))
+                .collect(Collectors.toSet());
+
         Set<String> modulePermissions = userModulePermissionRepository
                 .findByTenantIdAndUserId(user.getTenantId(), user.getId()).stream()
                 .flatMap(mp -> mp.getActions().stream()
                         .map(action -> mp.getModuleCode().name() + "_" + action.name()))
                 .collect(Collectors.toSet());
 
+        rolePermissions.addAll(roleModulePermissions);
         rolePermissions.addAll(modulePermissions);
         return rolePermissions;
     }
@@ -172,7 +182,9 @@ public class AuthServiceImpl implements AuthService {
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
 
         var modulePermissions = userModulePermissionRepository.findByTenantIdAndUserId(tenantId, user.getId());
-        UserPrincipal userPrincipal = UserPrincipal.create(user, modulePermissions);
+        var roleIds = user.getRoles().stream().map(Role::getId).collect(Collectors.toSet());
+        var roleModulePermissions = roleModulePermissionRepository.findByTenantIdAndRoleIdIn(tenantId, roleIds);
+        UserPrincipal userPrincipal = UserPrincipal.create(user, modulePermissions, roleModulePermissions);
         Authentication authentication = new UsernamePasswordAuthenticationToken(userPrincipal, null, userPrincipal.getAuthorities());
 
         String newAccessToken = tokenProvider.generateAccessToken(authentication);

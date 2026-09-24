@@ -2,7 +2,6 @@ package com.msmeerp.user.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,6 +25,5 @@ public class UserInviteRequest {
     @NotBlank(message = "Last name is required")
     private String lastName;
 
-    @NotEmpty(message = "At least one Role Id is required")
     private Set<Long> roleIds;
 }

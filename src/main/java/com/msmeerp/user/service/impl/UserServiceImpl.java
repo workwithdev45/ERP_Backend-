@@ -54,6 +54,11 @@ public class UserServiceImpl implements UserService {
     @Value("${app.portal.scheme:http}")
     private String scheme;
 
+    // Set once real subdomain hosting/DNS is live; until then, invite links point here instead
+    // (same app.frontend.url override used for password-reset links).
+    @Value("${app.frontend.url:}")
+    private String frontendUrl;
+
     @Override
     @Transactional
     public UserResponse createUser(UserCreateRequest request) {
@@ -173,7 +178,9 @@ public class UserServiceImpl implements UserService {
             throw new BadRequestException("Email '" + email + "' is already in use");
         }
 
-        Set<Role> roles = resolveRoles(request.getRoleIds());
+        Set<Role> roles = request.getRoleIds() == null || request.getRoleIds().isEmpty()
+                ? defaultInviteRoles(tenantId)
+                : resolveRoles(request.getRoleIds());
         if (roles.isEmpty()) {
             throw new BadRequestException("The specified role IDs were not found for tenant: " + tenantId);
         }
@@ -197,8 +204,8 @@ public class UserServiceImpl implements UserService {
         updateUserTenantMap(saved.getEmail(), tenant.getPortalId());
 
         String inviteToken = tokenProvider.generateUserInviteToken(email, tenantId);
-        String inviteUrl = "%s://%s.%s/accept-invite?portalId=%s&email=%s&token=%s"
-                .formatted(scheme, tenant.getPortalId(), baseDomain, tenant.getPortalId(), email, inviteToken);
+        String inviteUrl = "%s/accept-invite?portalId=%s&email=%s&token=%s"
+                .formatted(portalOrigin(tenant.getPortalId()), tenant.getPortalId(), email, inviteToken);
         emailService.sendUserInviteEmail(email, tenant.getName(), inviteUrl);
 
         return mapToResponse(saved);
@@ -228,6 +235,13 @@ public class UserServiceImpl implements UserService {
         return ApiResponse.success(null, "Invitation accepted. You can now sign in.");
     }
 
+    private String portalOrigin(String portalId) {
+        if (frontendUrl != null && !frontendUrl.isBlank()) {
+            return frontendUrl;
+        }
+        return "%s://%s.%s".formatted(scheme, portalId, baseDomain);
+    }
+
     private String uniqueUsernameFromEmail(String tenantId, String email) {
         String base = email.split("@")[0].replaceAll("[^a-zA-Z0-9._-]", "");
         String candidate = base;
@@ -253,6 +267,12 @@ public class UserServiceImpl implements UserService {
         userTenantMapRepository.save(map);
     }
 
+    private Set<Role> defaultInviteRoles(String tenantId) {
+        return roleRepository.findByTenantIdAndName(tenantId, "USER")
+                .map(Set::of)
+                .orElseGet(HashSet::new);
+    }
+
     private Set<Role> resolveRoles(Set<Long> roleIds) {
         if (roleIds == null || roleIds.isEmpty()) {
             return new HashSet<>();
@@ -276,6 +296,7 @@ public class UserServiceImpl implements UserService {
                 .phoneNumber(user.getPhoneNumber())
                 .status(user.getStatus())
                 .roles(user.getRoles().stream().map(Role::getName).collect(Collectors.toSet()))
+                .roleIds(user.getRoles().stream().map(Role::getId).collect(Collectors.toSet()))
                 .createdAt(user.getCreatedAt())
                 .build();
     }

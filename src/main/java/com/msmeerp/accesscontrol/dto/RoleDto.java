@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.Instant;
 import java.util.Set;
 
 @Data
@@ -22,4 +23,6 @@ public class RoleDto {
     private boolean systemRole;
     private Set<Long> permissionIds;
     private Set<String> permissionNames;
+    private Long userCount;
+    private Instant updatedAt;
 }

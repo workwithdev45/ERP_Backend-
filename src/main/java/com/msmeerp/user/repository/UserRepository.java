@@ -17,4 +17,5 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Page<User> findByTenantId(String tenantId, Pageable pageable);
     boolean existsByTenantIdAndUsername(String tenantId, String username);
     boolean existsByTenantIdAndEmail(String tenantId, String email);
+    long countByTenantIdAndRoles_Id(String tenantId, Long roleId);
 }

@@ -24,5 +24,6 @@ public class UserResponse {
     private String phoneNumber;
     private User.UserStatus status;
     private Set<String> roles;
+    private Set<Long> roleIds;
     private Instant createdAt;
 }

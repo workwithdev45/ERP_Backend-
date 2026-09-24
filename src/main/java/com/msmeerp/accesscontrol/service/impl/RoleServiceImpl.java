@@ -9,6 +9,7 @@ import com.msmeerp.accesscontrol.service.RoleService;
 import com.msmeerp.common.exception.BadRequestException;
 import com.msmeerp.common.exception.ResourceNotFoundException;
 import com.msmeerp.tenant.context.TenantContext;
+import com.msmeerp.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +25,7 @@ public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional
@@ -118,6 +120,8 @@ public class RoleServiceImpl implements RoleService {
                 .map(Permission::getId)
                 .collect(Collectors.toSet());
 
+        long userCount = userRepository.countByTenantIdAndRoles_Id(role.getTenantId(), role.getId());
+
         return RoleDto.builder()
                 .id(role.getId())
                 .name(role.getName())
@@ -125,6 +129,8 @@ public class RoleServiceImpl implements RoleService {
                 .systemRole(role.isSystemRole())
                 .permissionIds(permIds)
                 .permissionNames(permNames)
+                .userCount(userCount)
+                .updatedAt(role.getUpdatedAt())
                 .build();
     }
 }
