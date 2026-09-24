@@ -13,4 +13,6 @@ public final class AppConstants {
     public static final String DEFAULT_TENANT_ID = "msmeerp-main";
     public static final String AUTHORIZATION_HEADER = "Authorization";
     public static final String BEARER_PREFIX = "Bearer ";
+
+    public static final String DEFAULT_EXPIRING_SOON_DAYS = "30";
 }
