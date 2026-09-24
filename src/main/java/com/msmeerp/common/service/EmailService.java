@@ -11,4 +11,6 @@ public interface EmailService {
     void sendPortalLinksEmail(String toEmail, List<String> portalUrls);
 
     void sendUserInviteEmail(String toEmail, String companyName, String inviteUrl);
+
+    void sendPasswordResetEmail(String toEmail, String companyName, String resetUrl, long validMinutes);
 }

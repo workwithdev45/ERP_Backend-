@@ -9,6 +9,9 @@ import com.msmeerp.onboarding.dto.SetAdminPasswordRequest;
 import com.msmeerp.onboarding.dto.SetAdminPasswordResponse;
 import com.msmeerp.onboarding.dto.VerifyOtpRequest;
 import com.msmeerp.onboarding.dto.VerifyOtpResponse;
+import com.msmeerp.onboarding.dto.WorkspaceSummary;
+
+import java.util.List;
 
 public interface OnboardingService {
 
@@ -22,5 +25,5 @@ public interface OnboardingService {
 
     SetAdminPasswordResponse setAdminPassword(SetAdminPasswordRequest request);
 
-    ApiResponse<Void> findCompanies(FindCompanyRequest request);
+    ApiResponse<List<WorkspaceSummary>> findCompanies(FindCompanyRequest request);
 }

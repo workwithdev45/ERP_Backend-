@@ -1,5 +1,7 @@
 package com.msmeerp.auth.controller;
 
+import com.msmeerp.auth.dto.ForgotPasswordRequest;
+import com.msmeerp.auth.dto.ResetPasswordRequest;
 import com.msmeerp.auth.dto.LoginRequest;
 import com.msmeerp.auth.dto.LoginResponse;
 import com.msmeerp.auth.dto.RefreshTokenRequest;
@@ -32,6 +34,19 @@ public class AuthController {
     public ResponseEntity<ApiResponse<UserProfileResponse>> getCurrentUser() {
         UserProfileResponse response = authService.getCurrentUserProfile();
         return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        authService.requestPasswordReset(request);
+        return ResponseEntity.ok(ApiResponse.success(
+                "If an account exists for that email in this workspace, we've sent a link to reset the password."));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(ApiResponse.success("Your password has been reset. You can now sign in."));
     }
 
     @PostMapping("/refresh-token")

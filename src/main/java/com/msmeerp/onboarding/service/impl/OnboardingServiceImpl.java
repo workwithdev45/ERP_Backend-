@@ -12,6 +12,7 @@ import com.msmeerp.onboarding.dto.SetAdminPasswordRequest;
 import com.msmeerp.onboarding.dto.SetAdminPasswordResponse;
 import com.msmeerp.onboarding.dto.VerifyOtpRequest;
 import com.msmeerp.onboarding.dto.VerifyOtpResponse;
+import com.msmeerp.onboarding.dto.WorkspaceSummary;
 import com.msmeerp.onboarding.entity.CompanyOnboarding;
 import com.msmeerp.onboarding.repository.CompanyOnboardingRepository;
 import com.msmeerp.onboarding.service.OnboardingService;
@@ -35,6 +36,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -80,7 +82,7 @@ public class OnboardingServiceImpl implements OnboardingService {
         Optional<Tenant> existingTenant = tenantRepository.findByAdminEmail(adminEmail);
         if (existingTenant.isPresent() && existingTenant.get().isActive()) {
             log.info("Registration rejected: admin {} already owns active company {}", adminEmail, existingTenant.get().getPortalId());
-            throw new BadRequestException("A company portal '" + existingTenant.get().getPortalId() + "' is already registered with this email. Please sign in instead.");
+            throw new BadRequestException("A company workspace is already registered with this email. Please sign in instead.");
         }
 
         // 2. Generate secure 4-digit OTP
@@ -158,7 +160,7 @@ public class OnboardingServiceImpl implements OnboardingService {
             return CheckPortalIdResponse.builder()
                     .error(false)
                     .available(false)
-                    .message("Portal ID is required")
+                    .message("Workspace ID is required")
                     .build();
         }
 
@@ -169,7 +171,7 @@ public class OnboardingServiceImpl implements OnboardingService {
             return CheckPortalIdResponse.builder()
                     .error(false)
                     .available(false)
-                    .message("Portal ID must be 3-50 characters with only lowercase letters, digits, and hyphens")
+                    .message("Workspace ID must be 3-50 characters with only lowercase letters, digits, and hyphens")
                     .build();
         }
 
@@ -187,7 +189,7 @@ public class OnboardingServiceImpl implements OnboardingService {
             return CheckPortalIdResponse.builder()
                     .error(false)
                     .available(false)
-                    .message("Portal ID is already taken by another company")
+                    .message("Workspace ID is already taken by another company")
                     .build();
         }
 
@@ -214,7 +216,7 @@ public class OnboardingServiceImpl implements OnboardingService {
                 .orElseThrow(() -> new BadRequestException("Registration session invalid or expired. Please verify your email again."));
 
         if (onboarding.getStatus() == CompanyOnboarding.OnboardingStatus.PENDING) {
-            throw new BadRequestException("Please verify your email OTP before reserving a portal.");
+            throw new BadRequestException("Please verify your email OTP before reserving a workspace.");
         }
 
         // 3. Race condition protection: re-validate portal ID
@@ -231,7 +233,7 @@ public class OnboardingServiceImpl implements OnboardingService {
         onboarding.setStatus(CompanyOnboarding.OnboardingStatus.PORTAL_RESERVED);
         onboardingRepository.save(onboarding);
 
-        return ApiResponse.success("Company portal reserved and provisioned successfully!");
+        return ApiResponse.success("Company workspace reserved and provisioned successfully!");
     }
 
     @Override
@@ -251,13 +253,13 @@ public class OnboardingServiceImpl implements OnboardingService {
 
         if (onboarding.getStatus() != CompanyOnboarding.OnboardingStatus.PORTAL_RESERVED
                 || !portalId.equalsIgnoreCase(onboarding.getPortalId())) {
-            throw new BadRequestException("Portal must be reserved before setting admin password.");
+            throw new BadRequestException("Workspace must be reserved before setting admin password.");
         }
 
         // 3. Find Super Admin user for this tenant and update password
         Tenant tenant = tenantRepository.findByPortalId(portalId)
                 .or(() -> tenantRepository.findById(portalId))
-                .orElseThrow(() -> new BadRequestException("Company portal not found: " + portalId));
+                .orElseThrow(() -> new BadRequestException("Company workspace not found: " + portalId));
 
         User adminUser = userRepository.findByTenantIdAndEmail(tenant.getId(), adminEmail)
                 .orElseGet(() -> {
@@ -288,31 +290,49 @@ public class OnboardingServiceImpl implements OnboardingService {
     }
 
     @Override
-    public ApiResponse<Void> findCompanies(FindCompanyRequest request) {
+    public ApiResponse<List<WorkspaceSummary>> findCompanies(FindCompanyRequest request) {
         String userEmail = request.getUserEmail().toLowerCase().trim();
 
         // Look up portal IDs from UserTenantMap or Tenants
         Optional<UserTenantMap> mapOpt = userTenantMapRepository.findByEmail(userEmail);
         List<String> portalIds = new ArrayList<>();
 
+        // Workspaces the user was added to, plus the one they administer (either record may be missing).
         if (mapOpt.isPresent() && StringUtils.hasText(mapOpt.get().getTenantIds())) {
             portalIds.addAll(Arrays.asList(mapOpt.get().getTenantIds().split(",")));
-        } else {
-            Optional<Tenant> tenantOpt = tenantRepository.findByAdminEmail(userEmail);
-            tenantOpt.ifPresent(t -> portalIds.add(t.getPortalId()));
         }
+        tenantRepository.findByAdminEmail(userEmail)
+                .map(Tenant::getPortalId)
+                .ifPresent(portalIds::add);
 
         if (portalIds.isEmpty()) {
-            throw new BadRequestException("This email is not linked to any company portal.");
+            throw new BadRequestException("This email is not linked to any company workspace.");
         }
 
-        List<String> portalUrls = portalIds.stream()
-                .map(id -> "%s://%s.%s".formatted(scheme, id.trim(), baseDomain))
+        // Return the workspaces so the client can take the user straight to sign-in.
+        List<WorkspaceSummary> workspaces = portalIds.stream()
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .map(portalId -> {
+                    Optional<Tenant> tenant = tenantRepository.findByPortalId(portalId);
+                    if (tenant.isPresent() && !tenant.get().isActive()) {
+                        return null;
+                    }
+                    String name = tenant
+                            .map(t -> StringUtils.hasText(t.getDisplayName()) ? t.getDisplayName() : t.getName())
+                            .orElse(portalId);
+                    return WorkspaceSummary.builder().portalId(portalId).name(name).build();
+                })
+                .filter(Objects::nonNull)
                 .toList();
 
-        // Send links via email
-        emailService.sendPortalLinksEmail(userEmail, portalUrls);
+        if (workspaces.isEmpty()) {
+            throw new BadRequestException("This email is not linked to any active company workspace.");
+        }
 
-        return ApiResponse.success("Check your email for your company portal link(s).");
+        return ApiResponse.success(workspaces, workspaces.size() == 1
+                ? "Workspace found."
+                : "Choose the workspace you want to sign in to.");
     }
 }

@@ -35,7 +35,7 @@ public class EmailServiceImpl implements EmailService {
         String subject = "MSME ERP confirmation code: " + otp;
         String body = """
                 <p style="color: #cbd5e1; font-size: 15px; margin: 0 0 20px;">Thank you for signing up for MSME ERP. We're happy you're here!</p>
-                <p style="color: #cbd5e1; font-size: 15px; margin: 0 0 24px;">Enter the following code in the window where you began setting up your company portal:</p>
+                <p style="color: #cbd5e1; font-size: 15px; margin: 0 0 24px;">Enter the following code in the window where you began setting up your company workspace:</p>
                 <div style="background-color: #1e293b; padding: 20px; border-radius: 8px; text-align: center; margin: 0 0 24px;">
                     <span style="font-size: 34px; font-weight: 700; letter-spacing: 10px; color: #f8fafc; font-family: monospace;">%s</span>
                 </div>
@@ -47,16 +47,16 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendWelcomeEmail(String toEmail, String portalId, String portalUrl) {
-        String subject = "MSME ERP: your company portal is live";
+        String subject = "MSME ERP: your company workspace is live";
         String body = """
-                <p style="color: #cbd5e1; font-size: 15px; margin: 0 0 20px;">Congratulations! You've created the new MSME ERP company portal <strong>%s</strong>. Here are your account details:</p>
+                <p style="color: #cbd5e1; font-size: 15px; margin: 0 0 20px;">Congratulations! You've created the new MSME ERP company workspace <strong>%s</strong>. Here are your account details:</p>
                 <div style="background-color: #1e293b; padding: 20px; border-radius: 8px; text-align: center; margin: 0 0 24px;">
                     <div style="color: #f8fafc; font-size: 18px; font-weight: 700; margin-bottom: 12px;">%s</div>
                     <div style="color: #94a3b8; font-size: 14px; margin-bottom: 6px;">URL: <a href="%s" style="color: #60a5fa; text-decoration: none;">%s</a></div>
                     <div style="color: #94a3b8; font-size: 14px;">Email: %s</div>
                 </div>
                 <div style="text-align: center; margin: 0 0 24px;">
-                    <a href="%s" style="background-color: #2563eb; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: 700; display: inline-block;">Access Your Portal</a>
+                    <a href="%s" style="background-color: #2563eb; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: 700; display: inline-block;">Access Your Workspace</a>
                 </div>
                 <p style="color: #94a3b8; font-size: 13px; margin: 0;">You can now sign in using your Admin email and the password you configured.</p>
                 """.formatted(portalId, portalId, portalUrl, portalUrl, toEmail, portalUrl);
@@ -66,7 +66,7 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendPortalLinksEmail(String toEmail, List<String> portalUrls) {
-        String subject = "Your associated MSME ERP company portals";
+        String subject = "Your associated MSME ERP company workspaces";
         StringBuilder linksHtml = new StringBuilder();
         for (String url : portalUrls) {
             linksHtml.append("<li style=\"margin-bottom: 6px;\"><a href=\"").append(url)
@@ -74,7 +74,7 @@ public class EmailServiceImpl implements EmailService {
         }
 
         String body = """
-                <p style="color: #cbd5e1; font-size: 15px; margin: 0 0 16px;">Here are the company portals linked to your email (%s):</p>
+                <p style="color: #cbd5e1; font-size: 15px; margin: 0 0 16px;">Here are the company workspaces linked to your email (%s):</p>
                 <ul style="color: #cbd5e1; font-size: 15px; line-height: 1.6; margin: 0 0 24px; padding-left: 20px;">
                     %s
                 </ul>
@@ -94,6 +94,21 @@ public class EmailServiceImpl implements EmailService {
                 </div>
                 <p style="color: #94a3b8; font-size: 13px; margin: 0;">This invite link expires in 3 days. If you weren't expecting this, you can safely ignore this email.</p>
                 """.formatted(companyName, inviteUrl);
+
+        sendEmail(toEmail, subject, wrapInBrandedShell(body));
+    }
+
+    @Override
+    public void sendPasswordResetEmail(String toEmail, String companyName, String resetUrl, long validMinutes) {
+        String subject = "Reset your MSME ERP password";
+        String body = """
+                <p style="color: #cbd5e1; font-size: 15px; margin: 0 0 20px;">We received a request to reset the password for your <strong>%s</strong> account on MSME ERP.</p>
+                <div style="text-align: center; margin: 0 0 24px;">
+                    <a href="%s" style="background-color: #2563eb; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: 700; display: inline-block;">Reset password</a>
+                </div>
+                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 8px;">This link expires in <strong>%d minutes</strong> and can be used once.</p>
+                <p style="color: #94a3b8; font-size: 13px; margin: 0;">If you didn't ask to reset your password, you can ignore this email — your password won't change.</p>
+                """.formatted(companyName, resetUrl, validMinutes);
 
         sendEmail(toEmail, subject, wrapInBrandedShell(body));
     }

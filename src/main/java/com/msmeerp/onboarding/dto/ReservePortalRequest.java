@@ -22,9 +22,9 @@ public class ReservePortalRequest {
     @NotBlank(message = "Registration token is required")
     private String registrationToken;
 
-    @NotBlank(message = "Portal ID is required")
-    @Size(min = 3, max = 50, message = "Portal ID must be between 3 and 50 characters")
-    @Pattern(regexp = "^[a-z0-9]+(-[a-z0-9]+)*$", message = "Portal ID must contain only lowercase letters, numbers, and hyphens (without leading/trailing hyphens)")
+    @NotBlank(message = "Workspace ID is required")
+    @Size(min = 3, max = 50, message = "Workspace ID must be between 3 and 50 characters")
+    @Pattern(regexp = "^[a-z0-9]+(-[a-z0-9]+)*$", message = "Workspace ID must contain only lowercase letters, numbers, and hyphens (without leading/trailing hyphens)")
     private String portalId;
 
     @Builder.Default
