@@ -29,4 +29,8 @@ public class ReservePortalRequest {
 
     @Builder.Default
     private boolean startBlank = false;
+
+    /** G10: Trader / Manufacturer / Services — used to preset which modules are switched on. */
+    @Pattern(regexp = "^$|TRADER|MANUFACTURER|SERVICES", message = "Unrecognized business type")
+    private String businessType;
 }

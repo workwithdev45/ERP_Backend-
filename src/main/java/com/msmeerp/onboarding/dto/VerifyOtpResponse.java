@@ -17,4 +17,11 @@ public class VerifyOtpResponse {
     private String message;
 
     private String registrationToken;
+
+    /**
+     * Set only when this signup already reserved a workspace in an earlier, abandoned attempt
+     * (G1) — the client should skip straight to "set password" for this workspace instead of
+     * claiming a new one.
+     */
+    private String existingPortalId;
 }

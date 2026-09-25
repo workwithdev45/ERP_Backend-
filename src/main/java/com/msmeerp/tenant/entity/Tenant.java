@@ -81,6 +81,45 @@ public class Tenant implements Persistable<String> {
     @Builder.Default
     private boolean active = true;
 
+    // G3: company/GST details needed to produce a correct invoice — captured during onboarding
+    // and editable later from Settings -> Company.
+    @Column(name = "legal_name", length = 200)
+    private String legalName;
+
+    @Column(name = "gstin", length = 15)
+    private String gstin;
+
+    @Column(name = "address_line1", length = 200)
+    private String addressLine1;
+
+    @Column(name = "address_line2", length = 200)
+    private String addressLine2;
+
+    @Column(name = "city", length = 100)
+    private String city;
+
+    @Column(name = "state", length = 100)
+    private String state;
+
+    @Column(name = "pincode", length = 10)
+    private String pincode;
+
+    /** 1-12 — the calendar month an Indian financial year starts in (April = 4 by default). */
+    @Column(name = "financial_year_start_month", nullable = false)
+    @Builder.Default
+    private int financialYearStartMonth = 4;
+
+    /** G10: Trader / Manufacturer / Services — drives which modules/presets onboarding suggests. */
+    @Column(name = "business_type", length = 30)
+    private String businessType;
+
+    // G11: Terms & Privacy acceptance, captured at signup.
+    @Column(name = "terms_accepted_at")
+    private Instant termsAcceptedAt;
+
+    @Column(name = "terms_version", length = 20)
+    private String termsVersion;
+
     @OneToMany(mappedBy = "tenant", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<TenantSettings> settings = new ArrayList<>();

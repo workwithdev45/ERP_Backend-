@@ -1,0 +1,72 @@
+# G22: a real, git-tracked local profile — `application.yml` is gitignored (it tends to pick up
+# real secrets from whoever's machine last edited it), which left local runs with no committed
+# config at all, forcing prod config + a pile of env vars just to boot locally.
+#
+# Run with SPRING_PROFILES_ACTIVE=dev (see run-local.ps1, which is itself gitignored since it
+# carries real AWS SES credentials for whoever's testing outbound mail).
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+
+spring:
+  application:
+    name: msme-erp-backend
+
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Kolkata
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/msmeerp_dev}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      # validate, not update — dev runs the same Flyway migrations as prod so a broken migration
+      # is caught locally instead of at deploy time.
+      ddl-auto: validate
+    show-sql: true
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:dev-only-local-jwt-secret-please-change-me-1234567890}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+    refresh-expiration-ms: ${JWT_REFRESH_EXPIRATION_MS:604800000}
+    registration-token-expiration-ms: ${JWT_REGISTRATION_TOKEN_EXPIRATION_MS:1800000}
+    invite-token-expiration-ms: ${JWT_INVITE_TOKEN_EXPIRATION_MS:259200000}
+    password-reset-token-expiration-ms: ${JWT_PASSWORD_RESET_TOKEN_EXPIRATION_MS:1800000}
+  aws:
+    region: ${AWS_REGION:ap-south-1}
+  mail:
+    # false logs the rendered email (subject, body, links) instead of sending it — see
+    # EmailServiceImpl — so OTPs/invites/reset links are readable in the console without SES.
+    # Set MAIL_ENABLED=true (with real AWS creds) to actually send.
+    enabled: ${MAIL_ENABLED:false}
+    from: ${MAIL_FROM:dev@localhost}
+  portal:
+    base-domain: ${PORTAL_BASE_DOMAIN:msmeerp.com}
+    scheme: ${PORTAL_SCHEME:http}
+  frontend:
+    # Wildcard subdomains (acme.msmeerp.com) don't resolve on localhost, so every emailed link
+    # points here instead (G6/G7's "one link builder").
+    url: ${FRONTEND_URL:http://localhost:5173}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+    allowed-headers: "*"
+    allow-credentials: true
+  multitenancy:
+    header-name: X-Tenant-ID
+    default-tenant: msmeerp-main

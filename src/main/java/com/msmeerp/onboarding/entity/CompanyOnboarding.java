@@ -61,6 +61,14 @@ public class CompanyOnboarding {
     @Column(name = "portal_id", length = 128)
     private String portalId;
 
+    // G11: Terms & Privacy acceptance, captured at sign-up and carried onto the Tenant once
+    // the workspace is provisioned.
+    @Column(name = "terms_accepted_at")
+    private Instant termsAcceptedAt;
+
+    @Column(name = "terms_version", length = 20)
+    private String termsVersion;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", length = 30)
     @Builder.Default

@@ -1,5 +1,6 @@
 package com.msmeerp.auth.service;
 
+import com.msmeerp.auth.dto.ChangePasswordRequest;
 import com.msmeerp.auth.dto.ForgotPasswordRequest;
 import com.msmeerp.auth.dto.LoginRequest;
 import com.msmeerp.auth.dto.LoginResponse;
@@ -16,4 +17,7 @@ public interface AuthService {
     void requestPasswordReset(ForgotPasswordRequest request);
 
     void resetPassword(ResetPasswordRequest request);
+
+    /** Lets a signed-in user change their own password given the current one (G13). */
+    void changePassword(ChangePasswordRequest request);
 }

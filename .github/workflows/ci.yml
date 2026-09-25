@@ -1,0 +1,25 @@
+name: CI
+
+# G21: tests previously only ran at release time (see deploy.yml), so a broken test could sit on
+# dev_release for weeks unnoticed. This runs the suite on every push/PR instead.
+on:
+  push:
+    branches: [main, dev_release]
+  pull_request:
+    branches: [main, dev_release]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Run tests
+        run: ./mvnw -B test

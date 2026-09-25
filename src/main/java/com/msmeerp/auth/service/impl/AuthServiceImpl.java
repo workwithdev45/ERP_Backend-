@@ -4,6 +4,7 @@ import com.msmeerp.accesscontrol.entity.Permission;
 import com.msmeerp.accesscontrol.entity.Role;
 import com.msmeerp.accesscontrol.repository.RoleModulePermissionRepository;
 import com.msmeerp.accesscontrol.repository.UserModulePermissionRepository;
+import com.msmeerp.auth.dto.ChangePasswordRequest;
 import com.msmeerp.auth.dto.ForgotPasswordRequest;
 import com.msmeerp.auth.dto.LoginRequest;
 import com.msmeerp.auth.dto.LoginResponse;
@@ -15,9 +16,12 @@ import com.msmeerp.auth.security.UserPrincipal;
 import com.msmeerp.auth.service.AuthService;
 import com.msmeerp.common.exception.BadRequestException;
 import com.msmeerp.common.exception.ResourceNotFoundException;
+import com.msmeerp.common.exception.TooManyRequestsException;
 import com.msmeerp.common.exception.UnauthorizedException;
+import com.msmeerp.common.ratelimit.RateLimiterService;
 import com.msmeerp.common.service.EmailService;
 import com.msmeerp.common.util.AppConstants;
+import com.msmeerp.common.util.PortalUrlBuilder;
 import com.msmeerp.common.util.SecurityUtils;
 import com.msmeerp.tenant.context.TenantContext;
 import com.msmeerp.tenant.entity.Tenant;
@@ -28,7 +32,6 @@ import com.msmeerp.user.repository.UserRepository;
 import io.jsonwebtoken.Claims;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -40,6 +43,7 @@ import org.springframework.util.StringUtils;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -60,16 +64,11 @@ public class AuthServiceImpl implements AuthService {
     private final EmailService emailService;
     private final PasswordEncoder passwordEncoder;
     private final RoleModulePermissionRepository roleModulePermissionRepository;
+    private final RateLimiterService rateLimiterService;
+    private final PortalUrlBuilder portalUrlBuilder;
 
-    @Value("${app.portal.base-domain:msmeerp.com}")
-    private String baseDomain;
-
-    @Value("${app.portal.scheme:https}")
-    private String scheme;
-
-    /** Optional override for where emailed links point (e.g. http://localhost:5173 in local dev). */
-    @Value("${app.frontend.url:}")
-    private String frontendUrl;
+    private static final int MAX_LOGIN_ATTEMPTS = 10;
+    private static final Duration LOGIN_LOCKOUT_WINDOW = Duration.ofMinutes(15);
 
     private Set<String> effectivePermissionNames(User user) {
         Set<String> rolePermissions = user.getRoles().stream()
@@ -97,12 +96,22 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public LoginResponse login(LoginRequest loginRequest) {
+        String lockoutKey = "login:" + TenantContext.getTenantId() + ":" + loginRequest.getUsernameOrEmail().toLowerCase().trim();
+        if (!rateLimiterService.allow(lockoutKey, MAX_LOGIN_ATTEMPTS, LOGIN_LOCKOUT_WINDOW)) {
+            throw new TooManyRequestsException("Too many failed sign-in attempts. Please try again in a few minutes.");
+        }
+
+        // allow() above already counted this attempt; a failed authenticate() below leaves it
+        // counted toward the lockout window, a successful one gets reset immediately after.
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginRequest.getUsernameOrEmail(),
                         loginRequest.getPassword()
                 )
         );
+
+        // A successful login clears this account's failure count immediately.
+        rateLimiterService.reset(lockoutKey);
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
         UserPrincipal userPrincipal = (UserPrincipal) authentication.getPrincipal();
@@ -211,6 +220,13 @@ public class AuthServiceImpl implements AuthService {
         String tenantId = TenantContext.getTenantId();
         String email = request.getEmail().toLowerCase().trim();
 
+        if (!rateLimiterService.allow("forgot-password:" + tenantId + ":" + email, 5, Duration.ofHours(1))) {
+            // Same "do nothing observable" behaviour as the unknown-account path below —
+            // rate-limited requests must not reveal anything different to the caller.
+            log.info("Password reset rate-limited for workspace {}", tenantId);
+            return;
+        }
+
         if (tenantId == null || AppConstants.DEFAULT_TENANT_ID.equals(tenantId)) {
             log.info("Password reset requested without a workspace; ignoring");
             return;
@@ -258,11 +274,28 @@ public class AuthServiceImpl implements AuthService {
         log.info("Password reset completed for user {} in workspace {}", user.getId(), tenantId);
     }
 
+    @Override
+    @Transactional
+    public void changePassword(ChangePasswordRequest request) {
+        String username = SecurityUtils.getCurrentUsername()
+                .orElseThrow(() -> new UnauthorizedException("User is not authenticated"));
+        String tenantId = TenantContext.getTenantId();
+
+        User user = userRepository.findByTenantIdAndUsername(tenantId, username)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "username", username));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BadRequestException("Current password is incorrect");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(user);
+        log.info("Password changed for user {} in workspace {}", user.getId(), tenantId);
+    }
+
     private String buildResetUrl(String portalId, String token) {
-        String base = StringUtils.hasText(frontendUrl)
-                ? frontendUrl.replaceAll("/+$", "")
-                : "%s://%s.%s".formatted(scheme, portalId, baseDomain);
-        return base + "/reset-password?workspace=" + URLEncoder.encode(portalId, StandardCharsets.UTF_8)
+        return portalUrlBuilder.originFor(portalId) + "/reset-password?workspace="
+                + URLEncoder.encode(portalId, StandardCharsets.UTF_8)
                 + "&token=" + URLEncoder.encode(token, StandardCharsets.UTF_8);
     }
 }

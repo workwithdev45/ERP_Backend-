@@ -4,6 +4,8 @@ import com.msmeerp.onboarding.entity.CompanyOnboarding;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -16,4 +18,6 @@ public interface CompanyOnboardingRepository extends JpaRepository<CompanyOnboar
     Optional<CompanyOnboarding> findByAdminEmailAndRegistrationToken(String adminEmail, String registrationToken);
 
     boolean existsByAdminEmailAndStatus(String adminEmail, CompanyOnboarding.OnboardingStatus status);
+
+    List<CompanyOnboarding> findByStatusNotAndCreatedAtBefore(CompanyOnboarding.OnboardingStatus status, Instant cutoff);
 }

@@ -1,9 +1,11 @@
 package com.msmeerp.onboarding.service.impl;
 
+import com.msmeerp.accesscontrol.entity.ModuleCode;
 import com.msmeerp.accesscontrol.entity.Permission;
 import com.msmeerp.accesscontrol.entity.Role;
 import com.msmeerp.accesscontrol.repository.PermissionRepository;
 import com.msmeerp.accesscontrol.repository.RoleRepository;
+import com.msmeerp.accesscontrol.service.TenantModuleService;
 import com.msmeerp.onboarding.service.TenantProvisioningService;
 import com.msmeerp.tenant.entity.Tenant;
 import com.msmeerp.tenant.entity.UserTenantMap;
@@ -34,10 +36,11 @@ public class TenantProvisioningServiceImpl implements TenantProvisioningService 
     private final UserRepository userRepository;
     private final UserTenantMapRepository userTenantMapRepository;
     private final PasswordEncoder passwordEncoder;
+    private final TenantModuleService tenantModuleService;
 
     @Override
     @Transactional
-    public Tenant provisionTenant(String adminEmail, String portalId, boolean startBlank) {
+    public Tenant provisionTenant(String adminEmail, String portalId, boolean startBlank, String businessType) {
         String cleanPortalId = portalId.toLowerCase().trim();
         String displayName = formatDisplayName(cleanPortalId);
         String tenantUuid = UUID.randomUUID().toString();
@@ -52,6 +55,7 @@ public class TenantProvisioningServiceImpl implements TenantProvisioningService 
                 .subdomain(cleanPortalId)
                 .portalId(cleanPortalId)
                 .adminEmail(adminEmail)
+                .businessType(businessType)
                 .subscriptionTier("Standard")
                 .timezone("Asia/Kolkata")
                 .locale("en_IN")
@@ -64,6 +68,12 @@ public class TenantProvisioningServiceImpl implements TenantProvisioningService 
 
         // 2. Ensure standard ERP module permissions exist in the central catalog
         List<Permission> allPermissions = ensureStandardPermissions();
+
+        // 2b. G14/G10: seed this tenant's module switches, then narrow them to what a
+        // business of this type typically needs (still just a preset — an Admin can flip
+        // any module back on later from Settings -> Modules).
+        tenantModuleService.initializeDefaultModules(tenantUuid);
+        applyModulePreset(tenantUuid, businessType);
 
         // 3. Seed the standard tenant-scoped roles: ADMIN (tenant owner) and USER (staff, module-permission scoped)
         Role adminRole = createRole(tenantUuid, "ADMIN", "Owns this company's ERP workspace: manages users, roles, and module permissions", new HashSet<>(allPermissions));
@@ -159,6 +169,21 @@ public class TenantProvisioningServiceImpl implements TenantProvisioningService 
             map.setTenantIds(String.join(",", set));
         }
         userTenantMapRepository.save(map);
+    }
+
+    /** G10: a starting point only — every module stays reachable from Settings -> Modules afterwards. */
+    private void applyModulePreset(String tenantId, String businessType) {
+        if (businessType == null) {
+            return;
+        }
+        switch (businessType.toUpperCase()) {
+            case "TRADER" -> tenantModuleService.setModuleEnabledForTenant(tenantId, ModuleCode.PRODUCTION, false);
+            case "SERVICES" -> {
+                tenantModuleService.setModuleEnabledForTenant(tenantId, ModuleCode.PRODUCTION, false);
+                tenantModuleService.setModuleEnabledForTenant(tenantId, ModuleCode.INVENTORY, false);
+            }
+            default -> { /* MANUFACTURER (or unrecognized) keeps every module enabled */ }
+        }
     }
 
     private String formatDisplayName(String portalId) {

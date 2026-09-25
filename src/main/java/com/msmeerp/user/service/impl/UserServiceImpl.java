@@ -9,6 +9,7 @@ import com.msmeerp.common.exception.UnauthorizedException;
 import com.msmeerp.common.response.ApiResponse;
 import com.msmeerp.common.response.PagedResponse;
 import com.msmeerp.common.service.EmailService;
+import com.msmeerp.common.util.PortalUrlBuilder;
 import com.msmeerp.tenant.context.TenantContext;
 import com.msmeerp.tenant.dto.TenantResponse;
 import com.msmeerp.tenant.entity.UserTenantMap;
@@ -23,7 +24,6 @@ import com.msmeerp.user.entity.User;
 import com.msmeerp.user.repository.UserRepository;
 import com.msmeerp.user.service.UserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -47,17 +47,7 @@ public class UserServiceImpl implements UserService {
     private final TenantResolverService tenantResolverService;
     private final JwtTokenProvider tokenProvider;
     private final EmailService emailService;
-
-    @Value("${app.portal.base-domain:msmeerp.com}")
-    private String baseDomain;
-
-    @Value("${app.portal.scheme:http}")
-    private String scheme;
-
-    // Set once real subdomain hosting/DNS is live; until then, invite links point here instead
-    // (same app.frontend.url override used for password-reset links).
-    @Value("${app.frontend.url:}")
-    private String frontendUrl;
+    private final PortalUrlBuilder portalUrlBuilder;
 
     @Override
     @Transactional
@@ -203,12 +193,34 @@ public class UserServiceImpl implements UserService {
         TenantResponse tenant = tenantResolverService.getTenantById(tenantId);
         updateUserTenantMap(saved.getEmail(), tenant.getPortalId());
 
-        String inviteToken = tokenProvider.generateUserInviteToken(email, tenantId);
-        String inviteUrl = "%s/accept-invite?portalId=%s&email=%s&token=%s"
-                .formatted(portalOrigin(tenant.getPortalId()), tenant.getPortalId(), email, inviteToken);
-        emailService.sendUserInviteEmail(email, tenant.getName(), inviteUrl);
+        sendInviteEmail(saved, tenant, tenantId);
 
         return mapToResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public UserResponse resendInvite(Long userId) {
+        String tenantId = TenantContext.getTenantId();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        if (user.getStatus() != User.UserStatus.PENDING_VERIFICATION) {
+            throw new BadRequestException("This user has already accepted their invite");
+        }
+
+        TenantResponse tenant = tenantResolverService.getTenantById(tenantId);
+        sendInviteEmail(user, tenant, tenantId);
+
+        return mapToResponse(user);
+    }
+
+    private void sendInviteEmail(User user, TenantResponse tenant, String tenantId) {
+        String inviteToken = tokenProvider.generateUserInviteToken(user.getEmail(), tenantId);
+        String inviteUrl = "%s/accept-invite?portalId=%s&email=%s&token=%s"
+                .formatted(portalUrlBuilder.originFor(tenant.getPortalId()), tenant.getPortalId(),
+                        user.getEmail(), inviteToken);
+        emailService.sendUserInviteEmail(user.getEmail(), tenant.getName(), inviteUrl);
     }
 
     @Override
@@ -233,13 +245,6 @@ public class UserServiceImpl implements UserService {
         userRepository.save(user);
 
         return ApiResponse.success(null, "Invitation accepted. You can now sign in.");
-    }
-
-    private String portalOrigin(String portalId) {
-        if (frontendUrl != null && !frontendUrl.isBlank()) {
-            return frontendUrl;
-        }
-        return "%s://%s.%s".formatted(scheme, portalId, baseDomain);
     }
 
     private String uniqueUsernameFromEmail(String tenantId, String email) {

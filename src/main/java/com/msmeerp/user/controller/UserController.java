@@ -90,6 +90,13 @@ public class UserController {
                 .body(ApiResponse.success(response, "Invitation sent successfully"));
     }
 
+    @PostMapping("/{id}/resend-invite")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('USER_MANAGE')")
+    public ResponseEntity<ApiResponse<UserResponse>> resendInvite(@PathVariable Long id) {
+        UserResponse response = userService.resendInvite(id);
+        return ResponseEntity.ok(ApiResponse.success(response, "Invitation resent successfully"));
+    }
+
     @PostMapping("/accept-invite")
     public ResponseEntity<ApiResponse<Void>> acceptInvite(@Valid @RequestBody AcceptUserInviteRequest request) {
         ApiResponse<Void> response = userService.acceptInvite(request);

@@ -17,5 +17,6 @@ public interface UserService {
     UserResponse updateUser(Long id, UserUpdateRequest request);
     void deleteUser(Long id);
     UserResponse inviteUser(UserInviteRequest request);
+    UserResponse resendInvite(Long userId);
     ApiResponse<Void> acceptInvite(AcceptUserInviteRequest request);
 }

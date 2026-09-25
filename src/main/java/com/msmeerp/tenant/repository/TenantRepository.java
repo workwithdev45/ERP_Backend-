@@ -13,5 +13,6 @@ public interface TenantRepository extends JpaRepository<Tenant, String> {
     Optional<Tenant> findByAdminEmail(String adminEmail);
     boolean existsByIdAndActiveTrue(String id);
     boolean existsByPortalId(String portalId);
+    boolean existsByPortalIdAndActiveTrue(String portalId);
     boolean existsByAdminEmailAndActiveTrue(String adminEmail);
 }

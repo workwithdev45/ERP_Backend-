@@ -9,7 +9,6 @@ import com.msmeerp.onboarding.dto.SetAdminPasswordRequest;
 import com.msmeerp.onboarding.dto.SetAdminPasswordResponse;
 import com.msmeerp.onboarding.dto.VerifyOtpRequest;
 import com.msmeerp.onboarding.dto.VerifyOtpResponse;
-import com.msmeerp.onboarding.dto.WorkspaceSummary;
 import com.msmeerp.onboarding.service.OnboardingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,8 +19,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.List;
 
 @RestController
 @RequestMapping("/companies")
@@ -61,8 +58,8 @@ public class OnboardingController {
     }
 
     @PostMapping("/find")
-    public ResponseEntity<ApiResponse<List<WorkspaceSummary>>> findCompanies(@Valid @RequestBody FindCompanyRequest request) {
-        ApiResponse<List<WorkspaceSummary>> response = onboardingService.findCompanies(request);
+    public ResponseEntity<ApiResponse<Void>> findCompanies(@Valid @RequestBody FindCompanyRequest request) {
+        ApiResponse<Void> response = onboardingService.findCompanies(request);
         return ResponseEntity.ok(response);
     }
 }

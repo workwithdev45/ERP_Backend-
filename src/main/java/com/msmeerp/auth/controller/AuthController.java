@@ -1,5 +1,6 @@
 package com.msmeerp.auth.controller;
 
+import com.msmeerp.auth.dto.ChangePasswordRequest;
 import com.msmeerp.auth.dto.ForgotPasswordRequest;
 import com.msmeerp.auth.dto.ResetPasswordRequest;
 import com.msmeerp.auth.dto.LoginRequest;
@@ -47,6 +48,12 @@ public class AuthController {
     public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request);
         return ResponseEntity.ok(ApiResponse.success("Your password has been reset. You can now sign in."));
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        authService.changePassword(request);
+        return ResponseEntity.ok(ApiResponse.success("Your password has been changed."));
     }
 
     @PostMapping("/refresh-token")

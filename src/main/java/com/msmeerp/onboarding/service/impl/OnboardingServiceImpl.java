@@ -1,6 +1,7 @@
 package com.msmeerp.onboarding.service.impl;
 
 import com.msmeerp.auth.security.JwtTokenProvider;
+import com.msmeerp.auth.security.UserPrincipal;
 import com.msmeerp.common.exception.BadRequestException;
 import com.msmeerp.common.response.ApiResponse;
 import com.msmeerp.common.service.EmailService;
@@ -12,11 +13,13 @@ import com.msmeerp.onboarding.dto.SetAdminPasswordRequest;
 import com.msmeerp.onboarding.dto.SetAdminPasswordResponse;
 import com.msmeerp.onboarding.dto.VerifyOtpRequest;
 import com.msmeerp.onboarding.dto.VerifyOtpResponse;
-import com.msmeerp.onboarding.dto.WorkspaceSummary;
 import com.msmeerp.onboarding.entity.CompanyOnboarding;
 import com.msmeerp.onboarding.repository.CompanyOnboardingRepository;
 import com.msmeerp.onboarding.service.OnboardingService;
 import com.msmeerp.onboarding.service.TenantProvisioningService;
+import com.msmeerp.common.exception.TooManyRequestsException;
+import com.msmeerp.common.ratelimit.RateLimiterService;
+import com.msmeerp.common.util.PortalUrlBuilder;
 import com.msmeerp.tenant.entity.Tenant;
 import com.msmeerp.tenant.entity.UserTenantMap;
 import com.msmeerp.tenant.repository.TenantRepository;
@@ -25,21 +28,23 @@ import com.msmeerp.user.entity.User;
 import com.msmeerp.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 
 @Service
 @RequiredArgsConstructor
@@ -54,12 +59,8 @@ public class OnboardingServiceImpl implements OnboardingService {
     private final EmailService emailService;
     private final JwtTokenProvider tokenProvider;
     private final PasswordEncoder passwordEncoder;
-
-    @Value("${app.portal.base-domain:msmeerp.com}")
-    private String baseDomain;
-
-    @Value("${app.portal.scheme:https}")
-    private String scheme;
+    private final RateLimiterService rateLimiterService;
+    private final PortalUrlBuilder portalUrlBuilder;
 
     private static final Set<String> RESERVED_WORDS = Set.of(
             "admin", "administrator", "api", "app", "auth", "billing", "cdn",
@@ -71,12 +72,17 @@ public class OnboardingServiceImpl implements OnboardingService {
     );
 
     private static final Pattern PORTAL_ID_PATTERN = Pattern.compile("^[a-z0-9]+(-[a-z0-9]+)*$");
+    private static final String TERMS_VERSION = "2026-09-24";
     private final SecureRandom secureRandom = new SecureRandom();
 
     @Override
     @Transactional
     public ApiResponse<Void> register(CompanyRegisterInitRequest request) {
         String adminEmail = request.getAdminEmail().toLowerCase().trim();
+
+        if (!rateLimiterService.allow("otp-send:" + adminEmail, 5, Duration.ofMinutes(15))) {
+            throw new TooManyRequestsException("Too many verification codes requested. Please wait a few minutes and try again.");
+        }
 
         // 1. Check if this email already owns an activated company tenant
         Optional<Tenant> existingTenant = tenantRepository.findByAdminEmail(adminEmail);
@@ -91,17 +97,35 @@ public class OnboardingServiceImpl implements OnboardingService {
         long otpValidUntil = System.currentTimeMillis() + (10 * 60 * 1000); // 10 minutes TTL
 
         // 3. Upsert CompanyOnboarding Record
-        CompanyOnboarding onboarding = onboardingRepository.findByAdminEmail(adminEmail)
-                .orElse(CompanyOnboarding.builder()
-                        .adminEmail(adminEmail)
-                        .build());
+        Optional<CompanyOnboarding> existing = onboardingRepository.findByAdminEmail(adminEmail);
+        CompanyOnboarding onboarding = existing.orElse(CompanyOnboarding.builder()
+                .adminEmail(adminEmail)
+                .build());
+
+        // G11: only require ticking Terms on a genuinely new signup — resuming one (resending the
+        // OTP, or re-registering after abandoning at "claim workspace", G1) already has it on file.
+        if (onboarding.getTermsAcceptedAt() == null) {
+            if (!request.isTermsAccepted()) {
+                throw new BadRequestException("Please accept the Terms of Service and Privacy Policy to continue");
+            }
+            onboarding.setTermsAcceptedAt(Instant.now());
+            onboarding.setTermsVersion(TERMS_VERSION);
+        }
 
         onboarding.setAdminPhone(request.getAdminPhone());
         onboarding.setOtp(otp);
         onboarding.setOtpValidUntil(otpValidUntil);
         onboarding.setOtpAttempts(0);
         onboarding.setLastOtpSentAt(Instant.now());
-        onboarding.setStatus(CompanyOnboarding.OnboardingStatus.PENDING);
+        // G1: a resend/re-register must not regress a signup that already reserved a workspace
+        // (PORTAL_RESERVED) back to PENDING — that would hide the "resume at set-password" case
+        // that verifyOtp() relies on below. Only (re)start the funnel for signups that haven't
+        // claimed a workspace yet.
+        if (onboarding.getStatus() == null
+                || onboarding.getStatus() == CompanyOnboarding.OnboardingStatus.PENDING
+                || onboarding.getStatus() == CompanyOnboarding.OnboardingStatus.EMAIL_VERIFIED) {
+            onboarding.setStatus(CompanyOnboarding.OnboardingStatus.PENDING);
+        }
         onboardingRepository.save(onboarding);
 
         // 4. Send OTP email
@@ -141,7 +165,18 @@ public class OnboardingServiceImpl implements OnboardingService {
         // 5. Mint short-lived registration JWT token
         String registrationToken = tokenProvider.generateRegistrationToken(adminEmail, onboarding.getOnboardingId());
 
-        onboarding.setStatus(CompanyOnboarding.OnboardingStatus.EMAIL_VERIFIED);
+        // G1: if an earlier attempt already reserved a workspace for this email and provisioned
+        // its tenant/admin, don't force them through "claim workspace" again — that would fail
+        // since the workspace is already theirs. Let the resumed session skip straight to
+        // "set password" for the workspace they already have, as long as it's still unclaimed
+        // (an admin who finished setup wouldn't still be here — see the "already registered"
+        // check in register()).
+        boolean alreadyReserved = onboarding.getStatus() == CompanyOnboarding.OnboardingStatus.PORTAL_RESERVED
+                && StringUtils.hasText(onboarding.getPortalId());
+
+        if (!alreadyReserved) {
+            onboarding.setStatus(CompanyOnboarding.OnboardingStatus.EMAIL_VERIFIED);
+        }
         onboarding.setRegistrationToken(registrationToken);
         onboarding.setOtpAttempts(0);
         onboardingRepository.save(onboarding);
@@ -150,6 +185,7 @@ public class OnboardingServiceImpl implements OnboardingService {
                 .error(false)
                 .message("Email verified successfully.")
                 .registrationToken(registrationToken)
+                .existingPortalId(alreadyReserved ? onboarding.getPortalId() : null)
                 .build();
     }
 
@@ -184,8 +220,9 @@ public class OnboardingServiceImpl implements OnboardingService {
                     .build();
         }
 
-        // Check uniqueness in database
-        if (tenantRepository.existsByPortalId(portalId) || tenantRepository.existsById(portalId)) {
+        // Check uniqueness in database — only ACTIVE tenants block reuse, so a workspace
+        // released by the abandoned-signup cleanup job (G1) can be claimed again.
+        if (tenantRepository.existsByPortalIdAndActiveTrue(portalId)) {
             return CheckPortalIdResponse.builder()
                     .error(false)
                     .available(false)
@@ -226,7 +263,14 @@ public class OnboardingServiceImpl implements OnboardingService {
         }
 
         // 4. Provision dedicated ERP tenant
-        provisioningService.provisionTenant(adminEmail, portalId, request.isStartBlank());
+        Tenant provisioned = provisioningService.provisionTenant(adminEmail, portalId, request.isStartBlank(), request.getBusinessType());
+
+        // G11: carry the Terms & Privacy acceptance captured at sign-up onto the tenant record.
+        if (onboarding.getTermsAcceptedAt() != null) {
+            provisioned.setTermsAcceptedAt(onboarding.getTermsAcceptedAt());
+            provisioned.setTermsVersion(onboarding.getTermsVersion());
+            tenantRepository.save(provisioned);
+        }
 
         // 5. Update onboarding record
         onboarding.setPortalId(portalId);
@@ -277,21 +321,54 @@ public class OnboardingServiceImpl implements OnboardingService {
         onboardingRepository.save(onboarding);
 
         // 5. Construct live portal URL
-        String portalUrl = "%s://%s.%s".formatted(scheme, portalId, baseDomain);
+        String portalUrl = portalUrlBuilder.originFor(portalId);
 
         // 6. Send welcome email
         emailService.sendWelcomeEmail(adminEmail, portalId, portalUrl);
+
+        // 7. Sign them straight in (G2) — no reason to make a brand-new admin retype
+        // their workspace ID and password they just chose.
+        UserPrincipal principal = UserPrincipal.create(adminUser, Collections.emptyList(), Collections.emptyList());
+        Authentication authentication = new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities());
+        String accessToken = tokenProvider.generateAccessToken(authentication);
+        String refreshToken = tokenProvider.generateRefreshToken(adminUser.getUsername(), tenant.getId());
+
+        Set<String> roles = adminUser.getRoles().stream()
+                .map(role -> role.getName().toUpperCase())
+                .collect(java.util.stream.Collectors.toSet());
+        Set<String> permissions = adminUser.getRoles().stream()
+                .flatMap(role -> role.getPermissions().stream())
+                .map(permission -> permission.getName().toUpperCase())
+                .collect(java.util.stream.Collectors.toSet());
+        String tenantName = StringUtils.hasText(tenant.getDisplayName()) ? tenant.getDisplayName() : tenant.getName();
 
         return SetAdminPasswordResponse.builder()
                 .error(false)
                 .message("Admin password set and your ERP workspace is ready!")
                 .portalUrl(portalUrl)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .expiresIn(tokenProvider.getExpirationMs())
+                .tenantId(tenant.getId())
+                .tenantName(tenantName)
+                .username(adminUser.getUsername())
+                .email(adminUser.getEmail())
+                .roles(roles)
+                .permissions(permissions)
                 .build();
     }
 
     @Override
-    public ApiResponse<List<WorkspaceSummary>> findCompanies(FindCompanyRequest request) {
+    public ApiResponse<Void> findCompanies(FindCompanyRequest request) {
         String userEmail = request.getUserEmail().toLowerCase().trim();
+        String genericMessage = "If that email is linked to a company workspace, we've sent the sign-in link(s) to it.";
+
+        if (!rateLimiterService.allow("find-workspace:" + userEmail, 5, Duration.ofHours(1))) {
+            // Same generic response even when rate-limited, so the endpoint still can't be used
+            // to probe whether an email exists based on response differences.
+            return ApiResponse.success(genericMessage);
+        }
 
         // Look up portal IDs from UserTenantMap or Tenants
         Optional<UserTenantMap> mapOpt = userTenantMapRepository.findByEmail(userEmail);
@@ -305,34 +382,22 @@ public class OnboardingServiceImpl implements OnboardingService {
                 .map(Tenant::getPortalId)
                 .ifPresent(portalIds::add);
 
-        if (portalIds.isEmpty()) {
-            throw new BadRequestException("This email is not linked to any company workspace.");
-        }
-
-        // Return the workspaces so the client can take the user straight to sign-in.
-        List<WorkspaceSummary> workspaces = portalIds.stream()
+        List<String> portalUrls = portalIds.stream()
                 .map(String::trim)
                 .filter(StringUtils::hasText)
                 .distinct()
-                .map(portalId -> {
-                    Optional<Tenant> tenant = tenantRepository.findByPortalId(portalId);
-                    if (tenant.isPresent() && !tenant.get().isActive()) {
-                        return null;
-                    }
-                    String name = tenant
-                            .map(t -> StringUtils.hasText(t.getDisplayName()) ? t.getDisplayName() : t.getName())
-                            .orElse(portalId);
-                    return WorkspaceSummary.builder().portalId(portalId).name(name).build();
-                })
-                .filter(Objects::nonNull)
+                .filter(portalId -> tenantRepository.findByPortalId(portalId).map(Tenant::isActive).orElse(false))
+                .map(portalUrlBuilder::originFor)
                 .toList();
 
-        if (workspaces.isEmpty()) {
-            throw new BadRequestException("This email is not linked to any active company workspace.");
+        // Deliberately never reveal via the response whether the email matched anything (G4) —
+        // only ever send matches via email. Logging keeps this observable to us, not the caller.
+        if (portalUrls.isEmpty()) {
+            log.info("Find-workspace requested for an email with no linked workspace");
+        } else {
+            emailService.sendPortalLinksEmail(userEmail, portalUrls);
         }
 
-        return ApiResponse.success(workspaces, workspaces.size() == 1
-                ? "Workspace found."
-                : "Choose the workspace you want to sign in to.");
+        return ApiResponse.success(genericMessage);
     }
 }

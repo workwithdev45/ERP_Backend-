@@ -4,5 +4,5 @@ import com.msmeerp.tenant.entity.Tenant;
 
 public interface TenantProvisioningService {
 
-    Tenant provisionTenant(String adminEmail, String portalId, boolean startBlank);
+    Tenant provisionTenant(String adminEmail, String portalId, boolean startBlank, String businessType);
 }
