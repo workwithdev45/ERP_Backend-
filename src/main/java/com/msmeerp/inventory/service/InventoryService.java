@@ -8,7 +8,10 @@ import com.msmeerp.inventory.dto.StockReservationRequest;
 import com.msmeerp.inventory.dto.StockTransferRequest;
 import com.msmeerp.inventory.dto.WarehouseDto;
 import com.msmeerp.inventory.entity.Product;
+import com.msmeerp.inventory.entity.StockMovement;
 import com.msmeerp.inventory.entity.Warehouse;
+
+import java.math.BigDecimal;
 
 import java.util.List;
 
@@ -38,4 +41,20 @@ public interface InventoryService {
 
     /** Releases a reservation made by {@link #reserveStock}, e.g. when an order is cancelled. */
     InventoryItemDto releaseStock(StockReservationRequest request);
+
+    // -- hooks for Purchase and Sales documents -------------------------------------------------
+
+    /** Stock-in posted by another module's document (GRN, direct bill, sales return). */
+    void receiveForDocument(Long productId, Long warehouseId, int quantity, BigDecimal unitCost,
+                            StockMovement.MovementType type, String referenceType, String referenceId, String reason);
+
+    /** Stock-out posted by another module's document (delivery, direct invoice, purchase return). */
+    void issueForDocument(Long productId, Long warehouseId, int quantity,
+                          StockMovement.MovementType type, String referenceType, String referenceId, String reason);
+
+    /** Reserves as much of {@code quantity} as is available to promise; returns how much was reserved. */
+    int reserveAvailable(Long productId, Long warehouseId, int quantity);
+
+    /** Releases up to {@code quantity} previously reserved units. */
+    void releaseReserved(Long productId, Long warehouseId, int quantity);
 }

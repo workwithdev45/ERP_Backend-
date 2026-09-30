@@ -15,5 +15,5 @@ public interface WarehouseRepository extends JpaRepository<Warehouse, Long> {
 
     List<Warehouse> findByTenantIdOrderByNameAsc(String tenantId);
 
-    Optional<Warehouse> findByTenantIdAndDefaultWarehouseTrue(String tenantId);
+    List<Warehouse> findByTenantIdAndDefaultWarehouseTrue(String tenantId);
 }

@@ -86,6 +86,15 @@ public class InventoryServiceImpl implements InventoryService {
         String tenantId = TenantContext.getTenantId();
         Product product = productRepository.findByTenantIdAndId(tenantId, id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + id));
+        if (productRepository.findByTenantIdAndSku(tenantId, request.getSku())
+                .filter(other -> !other.getId().equals(id)).isPresent()) {
+            throw new BadRequestException("A product with SKU '" + request.getSku() + "' already exists");
+        }
+        if (StringUtils.hasText(request.getBarcode())
+                && productRepository.findByTenantIdAndBarcode(tenantId, request.getBarcode())
+                        .filter(other -> !other.getId().equals(id)).isPresent()) {
+            throw new BadRequestException("That barcode is already assigned to another product");
+        }
         product.setSku(request.getSku());
         product.setName(request.getName());
         product.setDescription(request.getDescription());
@@ -124,11 +133,15 @@ public class InventoryServiceImpl implements InventoryService {
         if (warehouseRepository.findByTenantIdAndCode(tenantId, request.getCode()).isPresent()) {
             throw new BadRequestException("A warehouse with code '" + request.getCode() + "' already exists");
         }
+        boolean makeDefault = Boolean.TRUE.equals(request.getDefaultWarehouse());
+        if (makeDefault) {
+            clearDefaultWarehouse(tenantId, null);
+        }
         Warehouse warehouse = Warehouse.builder()
                 .name(request.getName())
                 .code(request.getCode())
                 .location(request.getLocation())
-                .defaultWarehouse(request.getDefaultWarehouse() != null && request.getDefaultWarehouse())
+                .defaultWarehouse(makeDefault)
                 .build();
         warehouse.setTenantId(tenantId);
         return warehouseRepository.save(warehouse);
@@ -140,11 +153,29 @@ public class InventoryServiceImpl implements InventoryService {
         String tenantId = TenantContext.getTenantId();
         Warehouse warehouse = warehouseRepository.findByTenantIdAndId(tenantId, id)
                 .orElseThrow(() -> new ResourceNotFoundException("Warehouse not found with id: " + id));
+        if (warehouseRepository.findByTenantIdAndCode(tenantId, request.getCode())
+                .filter(other -> !other.getId().equals(id)).isPresent()) {
+            throw new BadRequestException("A warehouse with code '" + request.getCode() + "' already exists");
+        }
+        boolean makeDefault = Boolean.TRUE.equals(request.getDefaultWarehouse());
+        if (makeDefault) {
+            clearDefaultWarehouse(tenantId, id);
+        }
         warehouse.setName(request.getName());
         warehouse.setCode(request.getCode());
         warehouse.setLocation(request.getLocation());
-        warehouse.setDefaultWarehouse(request.getDefaultWarehouse() != null && request.getDefaultWarehouse());
+        warehouse.setDefaultWarehouse(makeDefault);
         return warehouseRepository.save(warehouse);
+    }
+
+    /** A tenant has at most one default warehouse, so marking a new one unmarks the others. */
+    private void clearDefaultWarehouse(String tenantId, Long keepId) {
+        warehouseRepository.findByTenantIdAndDefaultWarehouseTrue(tenantId).stream()
+                .filter(existing -> !existing.getId().equals(keepId))
+                .forEach(existing -> {
+                    existing.setDefaultWarehouse(false);
+                    warehouseRepository.save(existing);
+                });
     }
 
     @Override
@@ -270,6 +301,63 @@ public class InventoryServiceImpl implements InventoryService {
         return mapItem(inventoryItemRepository.save(item));
     }
 
+    @Override
+    @Transactional
+    public void receiveForDocument(Long productId, Long warehouseId, int quantity, BigDecimal unitCost,
+                                   StockMovement.MovementType type, String referenceType, String referenceId, String reason) {
+        String tenantId = TenantContext.getTenantId();
+        receiveStock(tenantId, getProductById(productId), getWarehouseById(warehouseId), quantity, unitCost,
+                type, referenceType, referenceId, null, reason);
+    }
+
+    @Override
+    @Transactional
+    public void issueForDocument(Long productId, Long warehouseId, int quantity,
+                                 StockMovement.MovementType type, String referenceType, String referenceId, String reason) {
+        String tenantId = TenantContext.getTenantId();
+        Product product = getProductById(productId);
+        Warehouse warehouse = getWarehouseById(warehouseId);
+        if (inventoryItemRepository.findByTenantIdAndProductIdAndWarehouseId(tenantId, productId, warehouseId).isEmpty()) {
+            throw new BadRequestException("No stock of " + product.getName() + " in " + warehouse.getName());
+        }
+        try {
+            issueStock(tenantId, product, warehouse, quantity, type, referenceType, referenceId, null, reason);
+        } catch (BadRequestException e) {
+            // Name the item — a multi-line document otherwise leaves the user guessing which line failed.
+            throw new BadRequestException("Not enough stock of " + product.getName() + " in " + warehouse.getName()
+                    + ": " + e.getMessage().replaceFirst("^Stock adjustment cannot result in negative stock ", ""));
+        }
+    }
+
+    @Override
+    @Transactional
+    public int reserveAvailable(Long productId, Long warehouseId, int quantity) {
+        InventoryItem item = inventoryItemRepository.findByTenantIdAndProductIdAndWarehouseId(
+                TenantContext.getTenantId(), productId, warehouseId).orElse(null);
+        if (item == null) {
+            return 0;
+        }
+        int reserved = Math.max(0, Math.min(quantity, item.getAvailableQuantity() - item.getReservedQuantity()));
+        if (reserved > 0) {
+            item.setReservedQuantity(item.getReservedQuantity() + reserved);
+            inventoryItemRepository.save(item);
+        }
+        return reserved;
+    }
+
+    @Override
+    @Transactional
+    public void releaseReserved(Long productId, Long warehouseId, int quantity) {
+        if (quantity <= 0) {
+            return;
+        }
+        inventoryItemRepository.findByTenantIdAndProductIdAndWarehouseId(TenantContext.getTenantId(), productId, warehouseId)
+                .ifPresent(item -> {
+                    item.setReservedQuantity(Math.max(0, item.getReservedQuantity() - quantity));
+                    inventoryItemRepository.save(item);
+                });
+    }
+
     // -- internal ledger helpers -------------------------------------------------------------
 
     private InventoryItem findOrCreateItem(String tenantId, Product product, Warehouse warehouse) {
@@ -289,6 +377,12 @@ public class InventoryServiceImpl implements InventoryService {
     private InventoryItem receiveStock(String tenantId, Product product, Warehouse warehouse, int quantity,
                                         BigDecimal unitCost, StockMovement.MovementType type, String referenceType,
                                         StockMovement.AdjustmentReason reasonCode, String reason) {
+        return receiveStock(tenantId, product, warehouse, quantity, unitCost, type, referenceType, null, reasonCode, reason);
+    }
+
+    private InventoryItem receiveStock(String tenantId, Product product, Warehouse warehouse, int quantity,
+                                        BigDecimal unitCost, StockMovement.MovementType type, String referenceType,
+                                        String referenceId, StockMovement.AdjustmentReason reasonCode, String reason) {
         InventoryItem item = findOrCreateItem(tenantId, product, warehouse);
 
         if (unitCost != null) {
@@ -313,7 +407,7 @@ public class InventoryServiceImpl implements InventoryService {
                 .totalValue(unitCost == null ? null : unitCost.multiply(BigDecimal.valueOf(quantity)))
                 .reasonCode(reasonCode)
                 .referenceType(referenceType)
-                .referenceId(referenceType + "-" + System.currentTimeMillis())
+                .referenceId(referenceId != null ? referenceId : referenceType + "-" + System.currentTimeMillis())
                 .reason(reason)
                 .build();
         movement.setTenantId(tenantId);
@@ -325,6 +419,12 @@ public class InventoryServiceImpl implements InventoryService {
     /** Removes stock, enforcing the negative-stock rule against what's still available to promise. */
     private InventoryItem issueStock(String tenantId, Product product, Warehouse warehouse, int quantity,
                                       StockMovement.MovementType type, String referenceType,
+                                      StockMovement.AdjustmentReason reasonCode, String reason) {
+        return issueStock(tenantId, product, warehouse, quantity, type, referenceType, null, reasonCode, reason);
+    }
+
+    private InventoryItem issueStock(String tenantId, Product product, Warehouse warehouse, int quantity,
+                                      StockMovement.MovementType type, String referenceType, String referenceId,
                                       StockMovement.AdjustmentReason reasonCode, String reason) {
         InventoryItem item = inventoryItemRepository.findByTenantIdAndProductIdAndWarehouseId(tenantId, product.getId(), warehouse.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("No stock found for this product in that warehouse"));
@@ -338,14 +438,16 @@ public class InventoryServiceImpl implements InventoryService {
         item.setAvailableQuantity(item.getAvailableQuantity() - quantity);
         InventoryItem saved = inventoryItemRepository.save(item);
 
+        // Outflows are recorded as negative quantities so ADJUSTMENT and TRANSFER rows still show
+        // which way the stock moved.
         StockMovement movement = StockMovement.builder()
                 .product(product)
                 .warehouse(warehouse)
                 .movementType(type)
-                .quantity(quantity)
+                .quantity(-quantity)
                 .reasonCode(reasonCode)
                 .referenceType(referenceType)
-                .referenceId(referenceType + "-" + System.currentTimeMillis())
+                .referenceId(referenceId != null ? referenceId : referenceType + "-" + System.currentTimeMillis())
                 .reason(reason)
                 .build();
         movement.setTenantId(tenantId);
