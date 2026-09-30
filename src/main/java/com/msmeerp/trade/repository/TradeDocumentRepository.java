@@ -6,6 +6,7 @@ import com.msmeerp.trade.entity.TradeDocument;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -21,6 +22,11 @@ public interface TradeDocumentRepository extends JpaRepository<TradeDocument, Lo
     List<TradeDocument> findByTenantIdAndIdIn(String tenantId, Collection<Long> ids);
 
     List<TradeDocument> findByTenantIdAndDocTypeAndStatusIn(String tenantId, DocumentType docType, Collection<DocumentStatus> statuses);
+
+    List<TradeDocument> findByTenantIdAndDocTypeInAndDocDateBetweenOrderByDocDateAscIdAsc(String tenantId, Collection<DocumentType> types,
+                                                                                    LocalDate from, LocalDate to);
+
+    List<TradeDocument> findByTenantIdAndDocTypeInAndStatusIn(String tenantId, Collection<DocumentType> types, Collection<DocumentStatus> statuses);
 
     List<TradeDocument> findByTenantIdAndDocTypeAndPartyIdAndStatusIn(String tenantId, DocumentType docType, Long partyId,
                                                                      Collection<DocumentStatus> statuses);

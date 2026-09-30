@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 
@@ -20,4 +21,10 @@ public interface TradeDocumentLineRepository extends JpaRepository<TradeDocument
     List<TradeDocumentLine> findByDocumentTypeAndStatus(@Param("tenantId") String tenantId,
                                                         @Param("docType") DocumentType docType,
                                                         @Param("statuses") Collection<DocumentStatus> statuses);
+
+    @Query("SELECT l FROM TradeDocumentLine l JOIN FETCH l.document d " +
+            "WHERE l.tenantId = :tenantId AND d.docType IN :types AND d.docDate BETWEEN :from AND :to")
+    List<TradeDocumentLine> findByDocumentTypesAndDateRange(@Param("tenantId") String tenantId,
+                                                            @Param("types") Collection<DocumentType> types,
+                                                            @Param("from") LocalDate from, @Param("to") LocalDate to);
 }
