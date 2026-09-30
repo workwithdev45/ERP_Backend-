@@ -15,8 +15,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
+/** W8: the append-only stock ledger — every quantity change is one row here, never edited or deleted. */
 @Entity
 @Table(name = "stock_movements")
 @Getter
@@ -41,6 +43,17 @@ public class StockMovement extends TenantAwareEntity {
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
 
+    /** Only meaningful on a stock-in movement — feeds the item's weighted-average cost. */
+    @Column(name = "unit_cost", precision = 14, scale = 4)
+    private BigDecimal unitCost;
+
+    @Column(name = "total_value", precision = 16, scale = 4)
+    private BigDecimal totalValue;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reason_code", length = 30)
+    private AdjustmentReason reasonCode;
+
     @Column(name = "reference_type", length = 50)
     private String referenceType;
 
@@ -55,6 +68,11 @@ public class StockMovement extends TenantAwareEntity {
     private Instant performedAt = Instant.now();
 
     public enum MovementType {
-        IN, OUT, ADJUSTMENT, TRANSFER, RETURN
+        IN, OUT, ADJUSTMENT, TRANSFER, RETURN, OPENING
+    }
+
+    /** Reason codes for manual adjustments, distinct from the freeform {@link #reason} note. */
+    public enum AdjustmentReason {
+        DAMAGE, LOST, FOUND, RECOUNT, EXPIRED, OTHER
     }
 }

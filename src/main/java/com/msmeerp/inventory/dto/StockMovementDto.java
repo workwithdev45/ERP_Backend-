@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Data
@@ -20,6 +21,9 @@ public class StockMovementDto {
     private String warehouseName;
     private String movementType;
     private Integer quantity;
+    private BigDecimal unitCost;
+    private BigDecimal totalValue;
+    private String reasonCode;
     private String referenceType;
     private String referenceId;
     private String reason;

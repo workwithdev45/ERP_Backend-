@@ -1,19 +1,18 @@
 package com.msmeerp.inventory.dto;
 
-import com.msmeerp.inventory.entity.StockMovement.AdjustmentReason;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
-
+/** W8: reserve/release stock against a pending commitment (e.g. an open sales order) without moving it yet. */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class InventoryAdjustmentRequest {
+public class StockReservationRequest {
 
     @NotNull(message = "Product id is required")
     private Long productId;
@@ -21,14 +20,7 @@ public class InventoryAdjustmentRequest {
     @NotNull(message = "Warehouse id is required")
     private Long warehouseId;
 
-    /** Positive to add stock, negative to remove it. */
     @NotNull(message = "Quantity is required")
+    @Positive(message = "Quantity must be positive")
     private Integer quantity;
-
-    /** Only meaningful for a positive (stock-in) adjustment — feeds the item's weighted-average cost. */
-    private BigDecimal unitCost;
-
-    private AdjustmentReason reasonCode;
-
-    private String reason;
 }

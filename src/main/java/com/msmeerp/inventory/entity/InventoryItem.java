@@ -41,4 +41,8 @@ public class InventoryItem extends TenantAwareEntity {
     @Column(name = "reserved_quantity", nullable = false)
     @Builder.Default
     private Integer reservedQuantity = 0;
+
+    /** W8: weighted-average cost per unit, recalculated on every stock-in movement that carries a cost. */
+    @Column(name = "average_cost", precision = 14, scale = 4)
+    private java.math.BigDecimal averageCost;
 }

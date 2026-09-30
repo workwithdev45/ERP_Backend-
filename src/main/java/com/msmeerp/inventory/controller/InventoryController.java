@@ -5,6 +5,8 @@ import com.msmeerp.inventory.dto.InventoryAdjustmentRequest;
 import com.msmeerp.inventory.dto.InventoryItemDto;
 import com.msmeerp.inventory.dto.ProductDto;
 import com.msmeerp.inventory.dto.StockMovementDto;
+import com.msmeerp.inventory.dto.StockReservationRequest;
+import com.msmeerp.inventory.dto.StockTransferRequest;
 import com.msmeerp.inventory.dto.WarehouseDto;
 import com.msmeerp.inventory.entity.Product;
 import com.msmeerp.inventory.entity.Warehouse;
@@ -32,7 +34,7 @@ public class InventoryController {
     private final InventoryService inventoryService;
 
     @PostMapping("/products")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE') or hasAuthority('INVENTORY_READ')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
     public ResponseEntity<ApiResponse<Product>> createProduct(@Valid @RequestBody ProductDto request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(inventoryService.createProduct(request), "Product created successfully"));
@@ -54,6 +56,18 @@ public class InventoryController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
     public ResponseEntity<ApiResponse<Product>> updateProduct(@PathVariable Long id, @Valid @RequestBody ProductDto request) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.updateProduct(id, request), "Product updated successfully"));
+    }
+
+    @GetMapping("/products/{id}/stock")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    public ResponseEntity<ApiResponse<List<InventoryItemDto>>> getStockForProduct(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(inventoryService.getStockForProduct(id)));
+    }
+
+    @GetMapping("/products/{id}/movements")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    public ResponseEntity<ApiResponse<List<StockMovementDto>>> getMovementsForProduct(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(inventoryService.getMovementsForProduct(id)));
     }
 
     @PostMapping("/warehouses")
@@ -91,6 +105,25 @@ public class InventoryController {
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
     public ResponseEntity<ApiResponse<InventoryItemDto>> adjustStock(@Valid @RequestBody InventoryAdjustmentRequest request) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.adjustStock(request), "Stock updated successfully"));
+    }
+
+    @PostMapping("/stock/transfer")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    public ResponseEntity<ApiResponse<Void>> transferStock(@Valid @RequestBody StockTransferRequest request) {
+        inventoryService.transferStock(request);
+        return ResponseEntity.ok(ApiResponse.success("Stock transferred successfully"));
+    }
+
+    @PostMapping("/stock/reserve")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    public ResponseEntity<ApiResponse<InventoryItemDto>> reserveStock(@Valid @RequestBody StockReservationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(inventoryService.reserveStock(request), "Stock reserved"));
+    }
+
+    @PostMapping("/stock/release")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    public ResponseEntity<ApiResponse<InventoryItemDto>> releaseStock(@Valid @RequestBody StockReservationRequest request) {
+        return ResponseEntity.ok(ApiResponse.success(inventoryService.releaseStock(request), "Reservation released"));
     }
 
     @GetMapping("/movements")

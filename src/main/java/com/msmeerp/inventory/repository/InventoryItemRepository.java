@@ -11,14 +11,21 @@ import java.util.Optional;
 
 @Repository
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, Long> {
-    Optional<InventoryItem> findByProductIdAndWarehouseId(Long productId, Long warehouseId);
 
-    @Query("SELECT i FROM InventoryItem i JOIN FETCH i.product p JOIN FETCH i.warehouse w")
-    List<InventoryItem> findAllWithDetails();
+    Optional<InventoryItem> findByTenantIdAndProductIdAndWarehouseId(String tenantId, Long productId, Long warehouseId);
 
-    @Query("SELECT i FROM InventoryItem i JOIN FETCH i.product p JOIN FETCH i.warehouse w WHERE p.reorderLevel >= i.availableQuantity OR i.availableQuantity <= 0")
-    List<InventoryItem> findLowStockItems();
+    @Query("SELECT i FROM InventoryItem i JOIN FETCH i.product p JOIN FETCH i.warehouse w WHERE i.tenantId = :tenantId")
+    List<InventoryItem> findAllWithDetails(@Param("tenantId") String tenantId);
 
-    @Query("SELECT i FROM InventoryItem i JOIN FETCH i.product p JOIN FETCH i.warehouse w WHERE i.warehouse.id = :warehouseId")
-    List<InventoryItem> findByWarehouseId(@Param("warehouseId") Long warehouseId);
+    @Query("SELECT i FROM InventoryItem i JOIN FETCH i.product p JOIN FETCH i.warehouse w " +
+            "WHERE i.tenantId = :tenantId AND (p.reorderLevel >= i.availableQuantity OR i.availableQuantity <= 0)")
+    List<InventoryItem> findLowStockItems(@Param("tenantId") String tenantId);
+
+    @Query("SELECT i FROM InventoryItem i JOIN FETCH i.product p JOIN FETCH i.warehouse w " +
+            "WHERE i.tenantId = :tenantId AND i.warehouse.id = :warehouseId")
+    List<InventoryItem> findByWarehouseId(@Param("tenantId") String tenantId, @Param("warehouseId") Long warehouseId);
+
+    @Query("SELECT i FROM InventoryItem i JOIN FETCH i.product p JOIN FETCH i.warehouse w " +
+            "WHERE i.tenantId = :tenantId AND i.product.id = :productId")
+    List<InventoryItem> findByProductId(@Param("tenantId") String tenantId, @Param("productId") Long productId);
 }

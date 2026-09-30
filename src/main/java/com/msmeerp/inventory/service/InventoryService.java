@@ -4,6 +4,8 @@ import com.msmeerp.inventory.dto.InventoryAdjustmentRequest;
 import com.msmeerp.inventory.dto.InventoryItemDto;
 import com.msmeerp.inventory.dto.ProductDto;
 import com.msmeerp.inventory.dto.StockMovementDto;
+import com.msmeerp.inventory.dto.StockReservationRequest;
+import com.msmeerp.inventory.dto.StockTransferRequest;
 import com.msmeerp.inventory.dto.WarehouseDto;
 import com.msmeerp.inventory.entity.Product;
 import com.msmeerp.inventory.entity.Warehouse;
@@ -23,6 +25,17 @@ public interface InventoryService {
 
     InventoryItemDto adjustStock(InventoryAdjustmentRequest request);
     List<InventoryItemDto> getAllInventory();
+    List<InventoryItemDto> getStockForProduct(Long productId);
     List<InventoryItemDto> getLowStockItems();
     List<StockMovementDto> getRecentMovements();
+    List<StockMovementDto> getMovementsForProduct(Long productId);
+
+    /** W8: move stock between two warehouses as one atomic OUT + IN. */
+    void transferStock(StockTransferRequest request);
+
+    /** W8: commit stock to a pending order without moving it — reduces available-to-promise. */
+    InventoryItemDto reserveStock(StockReservationRequest request);
+
+    /** Releases a reservation made by {@link #reserveStock}, e.g. when an order is cancelled. */
+    InventoryItemDto releaseStock(StockReservationRequest request);
 }

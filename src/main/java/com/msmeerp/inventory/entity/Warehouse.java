@@ -25,7 +25,7 @@ public class Warehouse extends TenantAwareEntity {
     private String name;
 
     @NotBlank
-    @Column(name = "code", nullable = false, unique = true, length = 50)
+    @Column(name = "code", nullable = false, length = 50)
     private String code;
 
     @Column(name = "location", length = 255)
