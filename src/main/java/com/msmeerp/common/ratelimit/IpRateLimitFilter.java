@@ -28,7 +28,8 @@ import java.util.Map;
 public class IpRateLimitFilter extends OncePerRequestFilter {
 
     private final RateLimiterService rateLimiterService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    // Spring's configured mapper: a bare `new ObjectMapper()` can't serialise ApiResponse's Instant timestamp.
+    private final ObjectMapper objectMapper;
 
     private static final Map<String, int[]> LIMITS = Map.of(
             // path prefix -> {maxAttempts, windowMinutes}

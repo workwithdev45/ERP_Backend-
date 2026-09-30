@@ -31,103 +31,108 @@ import java.util.List;
 @RequiredArgsConstructor
 public class InventoryController {
 
+    // Module grants (INVENTORY_VIEW/CREATE/EDIT) plus the older role permissions (INVENTORY_READ/WRITE).
+    private static final String CAN_VIEW = "hasRole('ADMIN') or hasAnyAuthority('INVENTORY_VIEW', 'INVENTORY_READ', 'INVENTORY_WRITE')";
+    private static final String CAN_CREATE = "hasRole('ADMIN') or hasAnyAuthority('INVENTORY_CREATE', 'INVENTORY_WRITE')";
+    private static final String CAN_EDIT = "hasRole('ADMIN') or hasAnyAuthority('INVENTORY_EDIT', 'INVENTORY_WRITE')";
+
     private final InventoryService inventoryService;
 
     @PostMapping("/products")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_CREATE)
     public ResponseEntity<ApiResponse<Product>> createProduct(@Valid @RequestBody ProductDto request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(inventoryService.createProduct(request), "Product created successfully"));
     }
 
     @GetMapping("/products")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_VIEW)
     public ResponseEntity<ApiResponse<List<Product>>> getAllProducts() {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.getAllProducts()));
     }
 
     @GetMapping("/products/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_VIEW)
     public ResponseEntity<ApiResponse<Product>> getProductById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.getProductById(id)));
     }
 
     @PutMapping("/products/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_EDIT)
     public ResponseEntity<ApiResponse<Product>> updateProduct(@PathVariable Long id, @Valid @RequestBody ProductDto request) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.updateProduct(id, request), "Product updated successfully"));
     }
 
     @GetMapping("/products/{id}/stock")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_VIEW)
     public ResponseEntity<ApiResponse<List<InventoryItemDto>>> getStockForProduct(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.getStockForProduct(id)));
     }
 
     @GetMapping("/products/{id}/movements")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_VIEW)
     public ResponseEntity<ApiResponse<List<StockMovementDto>>> getMovementsForProduct(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.getMovementsForProduct(id)));
     }
 
     @PostMapping("/warehouses")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_CREATE)
     public ResponseEntity<ApiResponse<Warehouse>> createWarehouse(@Valid @RequestBody WarehouseDto request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(inventoryService.createWarehouse(request), "Warehouse created successfully"));
     }
 
     @GetMapping("/warehouses")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_VIEW)
     public ResponseEntity<ApiResponse<List<Warehouse>>> getAllWarehouses() {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.getAllWarehouses()));
     }
 
     @PutMapping("/warehouses/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_EDIT)
     public ResponseEntity<ApiResponse<Warehouse>> updateWarehouse(@PathVariable Long id, @Valid @RequestBody WarehouseDto request) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.updateWarehouse(id, request), "Warehouse updated successfully"));
     }
 
     @GetMapping("/stock")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_VIEW)
     public ResponseEntity<ApiResponse<List<InventoryItemDto>>> getAllInventory() {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.getAllInventory()));
     }
 
     @GetMapping("/low-stock")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_VIEW)
     public ResponseEntity<ApiResponse<List<InventoryItemDto>>> getLowStockItems() {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.getLowStockItems()));
     }
 
     @PostMapping("/stock/adjust")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_CREATE)
     public ResponseEntity<ApiResponse<InventoryItemDto>> adjustStock(@Valid @RequestBody InventoryAdjustmentRequest request) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.adjustStock(request), "Stock updated successfully"));
     }
 
     @PostMapping("/stock/transfer")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_CREATE)
     public ResponseEntity<ApiResponse<Void>> transferStock(@Valid @RequestBody StockTransferRequest request) {
         inventoryService.transferStock(request);
         return ResponseEntity.ok(ApiResponse.success("Stock transferred successfully"));
     }
 
     @PostMapping("/stock/reserve")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_CREATE)
     public ResponseEntity<ApiResponse<InventoryItemDto>> reserveStock(@Valid @RequestBody StockReservationRequest request) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.reserveStock(request), "Stock reserved"));
     }
 
     @PostMapping("/stock/release")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_CREATE)
     public ResponseEntity<ApiResponse<InventoryItemDto>> releaseStock(@Valid @RequestBody StockReservationRequest request) {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.releaseStock(request), "Reservation released"));
     }
 
     @GetMapping("/movements")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('INVENTORY_READ') or hasAuthority('INVENTORY_WRITE')")
+    @PreAuthorize(CAN_VIEW)
     public ResponseEntity<ApiResponse<List<StockMovementDto>>> getRecentMovements() {
         return ResponseEntity.ok(ApiResponse.success(inventoryService.getRecentMovements()));
     }
