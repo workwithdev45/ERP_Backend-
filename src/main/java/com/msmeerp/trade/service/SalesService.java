@@ -1,10 +1,12 @@
 package com.msmeerp.trade.service;
 
+import com.msmeerp.common.response.PagedResponse;
 import com.msmeerp.trade.dto.AgeingPartyDto;
 import com.msmeerp.trade.dto.ConvertQuotationRequest;
 import com.msmeerp.trade.dto.DocumentDto;
 import com.msmeerp.trade.dto.DocumentRequest;
 import com.msmeerp.trade.dto.DocumentSummaryDto;
+import com.msmeerp.trade.dto.ListQuery;
 import com.msmeerp.trade.dto.PaymentDto;
 import com.msmeerp.trade.dto.PaymentRequest;
 import com.msmeerp.trade.entity.DocumentType;
@@ -13,7 +15,7 @@ import java.util.List;
 
 /** W11–W12: quote-to-cash — quotation → sales order (reserves stock) → delivery challan (stock out) → GST invoice → receipt. */
 public interface SalesService {
-    List<DocumentSummaryDto> listDocuments(DocumentType type);
+    PagedResponse<DocumentSummaryDto> listDocuments(DocumentType type, ListQuery query);
 
     DocumentDto getDocument(Long id);
 
@@ -39,7 +41,7 @@ public interface SalesService {
 
     PaymentDto recordReceipt(PaymentRequest request);
 
-    List<PaymentDto> listReceipts();
+    PagedResponse<PaymentDto> listReceipts(ListQuery query);
 
     List<AgeingPartyDto> receivablesAgeing();
 }

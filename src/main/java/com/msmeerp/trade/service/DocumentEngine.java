@@ -1,6 +1,7 @@
 package com.msmeerp.trade.service;
 
 import com.msmeerp.common.exception.BadRequestException;
+import com.msmeerp.common.response.PagedResponse;
 import com.msmeerp.common.exception.ResourceNotFoundException;
 import com.msmeerp.common.util.SecurityUtils;
 import com.msmeerp.inventory.entity.Product;
@@ -16,6 +17,7 @@ import com.msmeerp.trade.dto.DocumentLineDto;
 import com.msmeerp.trade.dto.DocumentLineRequest;
 import com.msmeerp.trade.dto.DocumentRequest;
 import com.msmeerp.trade.dto.DocumentSummaryDto;
+import com.msmeerp.trade.dto.ListQuery;
 import com.msmeerp.trade.entity.DocumentStatus;
 import com.msmeerp.trade.entity.DocumentType;
 import com.msmeerp.trade.entity.Party;
@@ -25,7 +27,9 @@ import com.msmeerp.trade.entity.TradeDocumentLine;
 import com.msmeerp.trade.repository.PartyRepository;
 import com.msmeerp.trade.repository.PaymentAllocationRepository;
 import com.msmeerp.trade.repository.TradeDocumentRepository;
+import com.msmeerp.trade.repository.TradeSpecifications;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -342,6 +346,21 @@ public class DocumentEngine {
     }
 
     // -- mapping -------------------------------------------------------------------------------
+
+    /** One page of a document list, newest first, filtered by {@code query}. */
+    public PagedResponse<DocumentSummaryDto> page(DocumentType type, ListQuery query) {
+        Page<TradeDocument> page = documentRepository.findAll(
+                TradeSpecifications.documents(tenantId(), type, query.getStatus(), query.getPartyId(), query.getQ()), query.pageable());
+        List<DocumentSummaryDto> content = toSummaries(page.getContent());
+        return PagedResponse.<DocumentSummaryDto>builder()
+                .content(content)
+                .pageNumber(page.getNumber())
+                .pageSize(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .last(page.isLast())
+                .build();
+    }
 
     public List<DocumentSummaryDto> toSummaries(List<TradeDocument> documents) {
         Map<Long, String> warehouseNames = warehouseNames();

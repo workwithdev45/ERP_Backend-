@@ -1,11 +1,13 @@
 package com.msmeerp.trade.controller;
 
 import com.msmeerp.common.response.ApiResponse;
+import com.msmeerp.common.response.PagedResponse;
 import com.msmeerp.trade.dto.AgeingPartyDto;
 import com.msmeerp.trade.dto.ConvertQuotationRequest;
 import com.msmeerp.trade.dto.DocumentDto;
 import com.msmeerp.trade.dto.DocumentRequest;
 import com.msmeerp.trade.dto.DocumentSummaryDto;
+import com.msmeerp.trade.dto.ListQuery;
 import com.msmeerp.trade.dto.PaymentDto;
 import com.msmeerp.trade.dto.PaymentRequest;
 import com.msmeerp.trade.entity.DocumentType;
@@ -16,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -44,8 +47,8 @@ public class SalesController {
 
     @GetMapping("/quotations")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> listQuotations() {
-        return list(DocumentType.QUOTATION);
+    public ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> listQuotations(@ModelAttribute ListQuery query) {
+        return list(DocumentType.QUOTATION, query);
     }
 
     @PostMapping("/quotations")
@@ -68,8 +71,8 @@ public class SalesController {
 
     @GetMapping("/orders")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> listOrders() {
-        return list(DocumentType.SALES_ORDER);
+    public ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> listOrders(@ModelAttribute ListQuery query) {
+        return list(DocumentType.SALES_ORDER, query);
     }
 
     @PostMapping("/orders")
@@ -86,8 +89,8 @@ public class SalesController {
 
     @GetMapping("/deliveries")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> listDeliveries() {
-        return list(DocumentType.DELIVERY_CHALLAN);
+    public ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> listDeliveries(@ModelAttribute ListQuery query) {
+        return list(DocumentType.DELIVERY_CHALLAN, query);
     }
 
     @PostMapping("/deliveries")
@@ -98,8 +101,8 @@ public class SalesController {
 
     @GetMapping("/invoices")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> listInvoices() {
-        return list(DocumentType.SALES_INVOICE);
+    public ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> listInvoices(@ModelAttribute ListQuery query) {
+        return list(DocumentType.SALES_INVOICE, query);
     }
 
     @PostMapping("/invoices")
@@ -110,8 +113,8 @@ public class SalesController {
 
     @GetMapping("/credit-notes")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> listCreditNotes() {
-        return list(DocumentType.CREDIT_NOTE);
+    public ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> listCreditNotes(@ModelAttribute ListQuery query) {
+        return list(DocumentType.CREDIT_NOTE, query);
     }
 
     @PostMapping("/credit-notes")
@@ -122,8 +125,8 @@ public class SalesController {
 
     @GetMapping("/receipts")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<PaymentDto>>> listReceipts() {
-        return ResponseEntity.ok(ApiResponse.success(salesService.listReceipts()));
+    public ResponseEntity<ApiResponse<PagedResponse<PaymentDto>>> listReceipts(@ModelAttribute ListQuery query) {
+        return ResponseEntity.ok(ApiResponse.success(salesService.listReceipts(query)));
     }
 
     @PostMapping("/receipts")
@@ -139,8 +142,8 @@ public class SalesController {
         return ResponseEntity.ok(ApiResponse.success(salesService.receivablesAgeing()));
     }
 
-    private ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> list(DocumentType type) {
-        return ResponseEntity.ok(ApiResponse.success(salesService.listDocuments(type)));
+    private ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> list(DocumentType type, ListQuery query) {
+        return ResponseEntity.ok(ApiResponse.success(salesService.listDocuments(type, query)));
     }
 
     private static ResponseEntity<ApiResponse<DocumentDto>> created(DocumentDto document, String message) {

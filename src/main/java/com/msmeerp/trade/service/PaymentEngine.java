@@ -1,9 +1,11 @@
 package com.msmeerp.trade.service;
 
 import com.msmeerp.common.exception.BadRequestException;
+import com.msmeerp.common.response.PagedResponse;
 import com.msmeerp.trade.dto.AgeingDocumentDto;
 import com.msmeerp.trade.dto.AgeingPartyDto;
 import com.msmeerp.trade.dto.AllocationDto;
+import com.msmeerp.trade.dto.ListQuery;
 import com.msmeerp.trade.dto.PaymentAllocationRequest;
 import com.msmeerp.trade.dto.PaymentDto;
 import com.msmeerp.trade.dto.PaymentRequest;
@@ -15,8 +17,10 @@ import com.msmeerp.trade.entity.PaymentAllocation;
 import com.msmeerp.trade.entity.PaymentDirection;
 import com.msmeerp.trade.entity.TradeDocument;
 import com.msmeerp.trade.repository.PaymentRepository;
+import com.msmeerp.trade.repository.TradeSpecifications;
 import com.msmeerp.trade.repository.TradeDocumentRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -89,10 +93,10 @@ public class PaymentEngine {
         return toDto(paymentRepository.save(payment));
     }
 
-    public List<PaymentDto> list(PaymentDirection direction) {
-        return paymentRepository.findByTenantIdAndDirectionOrderByIdDesc(engine.tenantId(), direction).stream()
-                .map(this::toDto)
-                .collect(Collectors.toList());
+    public PagedResponse<PaymentDto> list(PaymentDirection direction, ListQuery query) {
+        Page<Payment> page = paymentRepository.findAll(
+                TradeSpecifications.payments(engine.tenantId(), direction, query.getQ()), query.pageable());
+        return PagedResponse.from(page.map(this::toDto));
     }
 
     /** Open bills/invoices grouped by party and bucketed by days past their due date. */

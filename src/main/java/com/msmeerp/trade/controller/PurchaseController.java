@@ -1,10 +1,12 @@
 package com.msmeerp.trade.controller;
 
 import com.msmeerp.common.response.ApiResponse;
+import com.msmeerp.common.response.PagedResponse;
 import com.msmeerp.trade.dto.AgeingPartyDto;
 import com.msmeerp.trade.dto.DocumentDto;
 import com.msmeerp.trade.dto.DocumentRequest;
 import com.msmeerp.trade.dto.DocumentSummaryDto;
+import com.msmeerp.trade.dto.ListQuery;
 import com.msmeerp.trade.dto.PaymentDto;
 import com.msmeerp.trade.dto.PaymentRequest;
 import com.msmeerp.trade.dto.ReorderSuggestionDto;
@@ -16,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,8 +48,8 @@ public class PurchaseController {
 
     @GetMapping("/orders")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> listOrders() {
-        return list(DocumentType.PURCHASE_ORDER);
+    public ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> listOrders(@ModelAttribute ListQuery query) {
+        return list(DocumentType.PURCHASE_ORDER, query);
     }
 
     @PostMapping("/orders")
@@ -69,8 +72,8 @@ public class PurchaseController {
 
     @GetMapping("/receipts")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> listReceipts() {
-        return list(DocumentType.GOODS_RECEIPT);
+    public ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> listReceipts(@ModelAttribute ListQuery query) {
+        return list(DocumentType.GOODS_RECEIPT, query);
     }
 
     @PostMapping("/receipts")
@@ -81,8 +84,8 @@ public class PurchaseController {
 
     @GetMapping("/bills")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> listBills() {
-        return list(DocumentType.PURCHASE_BILL);
+    public ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> listBills(@ModelAttribute ListQuery query) {
+        return list(DocumentType.PURCHASE_BILL, query);
     }
 
     @PostMapping("/bills")
@@ -93,8 +96,8 @@ public class PurchaseController {
 
     @GetMapping("/debit-notes")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> listDebitNotes() {
-        return list(DocumentType.DEBIT_NOTE);
+    public ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> listDebitNotes(@ModelAttribute ListQuery query) {
+        return list(DocumentType.DEBIT_NOTE, query);
     }
 
     @PostMapping("/debit-notes")
@@ -105,8 +108,8 @@ public class PurchaseController {
 
     @GetMapping("/payments")
     @PreAuthorize(CAN_VIEW)
-    public ResponseEntity<ApiResponse<List<PaymentDto>>> listPayments() {
-        return ResponseEntity.ok(ApiResponse.success(purchaseService.listPayments()));
+    public ResponseEntity<ApiResponse<PagedResponse<PaymentDto>>> listPayments(@ModelAttribute ListQuery query) {
+        return ResponseEntity.ok(ApiResponse.success(purchaseService.listPayments(query)));
     }
 
     @PostMapping("/payments")
@@ -128,8 +131,8 @@ public class PurchaseController {
         return ResponseEntity.ok(ApiResponse.success(purchaseService.reorderSuggestions()));
     }
 
-    private ResponseEntity<ApiResponse<List<DocumentSummaryDto>>> list(DocumentType type) {
-        return ResponseEntity.ok(ApiResponse.success(purchaseService.listDocuments(type)));
+    private ResponseEntity<ApiResponse<PagedResponse<DocumentSummaryDto>>> list(DocumentType type, ListQuery query) {
+        return ResponseEntity.ok(ApiResponse.success(purchaseService.listDocuments(type, query)));
     }
 
     private static ResponseEntity<ApiResponse<DocumentDto>> created(DocumentDto document, String message) {

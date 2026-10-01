@@ -1,6 +1,7 @@
 package com.msmeerp.trade.service;
 
 import com.msmeerp.common.exception.BadRequestException;
+import com.msmeerp.common.response.PagedResponse;
 import com.msmeerp.inventory.entity.StockMovement;
 import com.msmeerp.inventory.service.InventoryService;
 import com.msmeerp.trade.dto.AgeingPartyDto;
@@ -8,6 +9,7 @@ import com.msmeerp.trade.dto.ConvertQuotationRequest;
 import com.msmeerp.trade.dto.DocumentDto;
 import com.msmeerp.trade.dto.DocumentRequest;
 import com.msmeerp.trade.dto.DocumentSummaryDto;
+import com.msmeerp.trade.dto.ListQuery;
 import com.msmeerp.trade.dto.PaymentDto;
 import com.msmeerp.trade.dto.PaymentRequest;
 import com.msmeerp.trade.entity.DocumentStatus;
@@ -40,11 +42,11 @@ public class SalesServiceImpl implements SalesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DocumentSummaryDto> listDocuments(DocumentType type) {
+    public PagedResponse<DocumentSummaryDto> listDocuments(DocumentType type, ListQuery query) {
         if (type.isPurchase()) {
             throw new BadRequestException("Not a sales document type");
         }
-        return engine.toSummaries(documentRepository.findByTenantIdAndDocTypeOrderByIdDesc(engine.tenantId(), type));
+        return engine.page(type, query);
     }
 
     @Override
@@ -300,8 +302,8 @@ public class SalesServiceImpl implements SalesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentDto> listReceipts() {
-        return paymentEngine.list(PaymentDirection.RECEIVED);
+    public PagedResponse<PaymentDto> listReceipts(ListQuery query) {
+        return paymentEngine.list(PaymentDirection.RECEIVED, query);
     }
 
     @Override

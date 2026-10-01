@@ -1,9 +1,11 @@
 package com.msmeerp.trade.service;
 
+import com.msmeerp.common.response.PagedResponse;
 import com.msmeerp.trade.dto.AgeingPartyDto;
 import com.msmeerp.trade.dto.DocumentDto;
 import com.msmeerp.trade.dto.DocumentRequest;
 import com.msmeerp.trade.dto.DocumentSummaryDto;
+import com.msmeerp.trade.dto.ListQuery;
 import com.msmeerp.trade.dto.PaymentDto;
 import com.msmeerp.trade.dto.PaymentRequest;
 import com.msmeerp.trade.dto.ReorderSuggestionDto;
@@ -13,7 +15,7 @@ import java.util.List;
 
 /** W9–W10: procure-to-pay — PO (with approval) → GRN (stock in) → bill → payment, plus returns. */
 public interface PurchaseService {
-    List<DocumentSummaryDto> listDocuments(DocumentType type);
+    PagedResponse<DocumentSummaryDto> listDocuments(DocumentType type, ListQuery query);
 
     DocumentDto getDocument(Long id);
 
@@ -34,7 +36,7 @@ public interface PurchaseService {
 
     PaymentDto recordPayment(PaymentRequest request);
 
-    List<PaymentDto> listPayments();
+    PagedResponse<PaymentDto> listPayments(ListQuery query);
 
     List<AgeingPartyDto> payablesAgeing();
 

@@ -4,6 +4,7 @@ import com.msmeerp.trade.entity.DocumentStatus;
 import com.msmeerp.trade.entity.DocumentType;
 import com.msmeerp.trade.entity.TradeDocument;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -12,7 +13,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface TradeDocumentRepository extends JpaRepository<TradeDocument, Long> {
+public interface TradeDocumentRepository extends JpaRepository<TradeDocument, Long>, JpaSpecificationExecutor<TradeDocument> {
     Optional<TradeDocument> findByTenantIdAndId(String tenantId, Long id);
 
     List<TradeDocument> findByTenantIdAndDocTypeOrderByIdDesc(String tenantId, DocumentType docType);

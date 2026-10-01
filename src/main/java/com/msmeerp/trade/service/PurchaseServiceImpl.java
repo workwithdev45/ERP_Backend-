@@ -1,6 +1,7 @@
 package com.msmeerp.trade.service;
 
 import com.msmeerp.common.exception.BadRequestException;
+import com.msmeerp.common.response.PagedResponse;
 import com.msmeerp.inventory.entity.InventoryItem;
 import com.msmeerp.inventory.entity.ItemType;
 import com.msmeerp.inventory.entity.Product;
@@ -12,6 +13,7 @@ import com.msmeerp.trade.dto.AgeingPartyDto;
 import com.msmeerp.trade.dto.DocumentDto;
 import com.msmeerp.trade.dto.DocumentRequest;
 import com.msmeerp.trade.dto.DocumentSummaryDto;
+import com.msmeerp.trade.dto.ListQuery;
 import com.msmeerp.trade.dto.PaymentDto;
 import com.msmeerp.trade.dto.PaymentRequest;
 import com.msmeerp.trade.dto.ReorderSuggestionDto;
@@ -51,11 +53,11 @@ public class PurchaseServiceImpl implements PurchaseService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DocumentSummaryDto> listDocuments(DocumentType type) {
+    public PagedResponse<DocumentSummaryDto> listDocuments(DocumentType type, ListQuery query) {
         if (!type.isPurchase()) {
             throw new BadRequestException("Not a purchase document type");
         }
-        return engine.toSummaries(documentRepository.findByTenantIdAndDocTypeOrderByIdDesc(engine.tenantId(), type));
+        return engine.page(type, query);
     }
 
     @Override
@@ -246,8 +248,8 @@ public class PurchaseServiceImpl implements PurchaseService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PaymentDto> listPayments() {
-        return paymentEngine.list(PaymentDirection.PAID);
+    public PagedResponse<PaymentDto> listPayments(ListQuery query) {
+        return paymentEngine.list(PaymentDirection.PAID, query);
     }
 
     @Override

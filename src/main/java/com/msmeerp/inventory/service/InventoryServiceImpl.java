@@ -19,6 +19,7 @@ import com.msmeerp.inventory.repository.StockMovementRepository;
 import com.msmeerp.inventory.repository.WarehouseRepository;
 import com.msmeerp.tenant.context.TenantContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -31,6 +32,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class InventoryServiceImpl implements InventoryService {
+
+    static final int RECENT_MOVEMENTS_LIMIT = 500;
 
     private final ProductRepository productRepository;
     private final WarehouseRepository warehouseRepository;
@@ -239,7 +242,8 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     public List<StockMovementDto> getRecentMovements() {
-        return stockMovementRepository.findByTenantIdOrderByPerformedAtDesc(TenantContext.getTenantId()).stream()
+        // W15: the ledger tab shows the latest movements; per-item history is on the item's own view.
+        return stockMovementRepository.findRecent(TenantContext.getTenantId(), PageRequest.of(0, RECENT_MOVEMENTS_LIMIT)).stream()
                 .map(this::mapMovement)
                 .collect(Collectors.toList());
     }
