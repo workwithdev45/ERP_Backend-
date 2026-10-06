@@ -1,72 +1,83 @@
-# Hospital Management System (HMS) - Backend API
+# MSME ERP — Backend API
 
-Enterprise-grade, Multi-Tenant Hospital Management System (HMS) backend built with **Spring Boot 3.4**, **Java 21**, **Spring Security 6 (JWT)**, **Spring Data JPA**, **PostgreSQL**, **Redis**, **Flyway**, and **Springdoc OpenAPI (Swagger 3)**.
-
----
-
-## 🏗️ Architecture & Modules
-
-The application adopts a **Modular Domain / Package-by-Feature** architecture:
-
-```
-src/main/java/com/hms/
-├── HmsApplication.java
-├── config/              # Security, OpenAPI, Redis, WebMvc, JPA Auditing
-├── common/              # BaseEntity, GlobalExceptionHandler, ApiResponse, PagedResponse
-├── tenant/              # Multi-tenancy context, filter, interceptor, tenant resolver
-├── auth/                # JWT TokenProvider, UserPrincipal, Login/Register
-├── accesscontrol/       # RBAC: Role & Permission controllers, services, entities
-├── user/                # User accounts & staff management
-├── hospital/            # Branches, Departments, Rooms, Bed inventory
-├── patient/             # Patient registration, UHID, medical history
-├── doctor/              # Doctor profiles, specialties, consulting schedules
-├── nursing/             # Nursing stations, shift rosters, duty history
-├── opd/                 # Outpatient appointments, consultations, prescriptions
-├── ipd/                 # Inpatient admissions, bed transfers, vitals, discharge summaries
-├── laboratory/          # Diagnostic tests, lab orders, test results
-├── pharmacy/            # Medicine stock batches, prescription dispensing
-├── billing/             # Invoices, payments, refunds
-├── hr/                  # Employee onboarding, leave management, payroll
-├── reports/             # Hospital analytics, KPIs, dashboard statistics
-└── audit/               # Spring AOP aspect logging for mutating REST calls
-```
+Multi-tenant ERP backend for Indian MSMEs (GST-ready sales, purchase and inventory), built with
+**Spring Boot 3.4**, **Java 21**, **Spring Security 6 (JWT)**, **Spring Data JPA**, **PostgreSQL**
+and **Flyway**. Outbound email goes through **AWS SES**.
 
 ---
 
-## 🚀 Getting Started
+## Architecture & modules
+
+Package-by-feature under `src/main/java/com/msmeerp/`:
+
+```
+├── MsmeErpApplication.java
+├── config/          # Security, JPA auditing, AWS
+├── common/          # Base entities, exceptions, ApiResponse/PagedResponse, rate limiting, validation
+├── tenant/          # Tenant context, X-Tenant-ID filter/interceptor, tenant resolution
+├── auth/            # JWT login, refresh token, forgot/reset/change password
+├── onboarding/      # Company sign-up: register → OTP → claim portal ID → set admin password
+├── accesscontrol/   # Roles, permissions, role/user module permissions, per-tenant module switches + guard
+├── user/            # Members, invites, accept-invite, company details
+├── inventory/       # Products, warehouses, stock levels, adjust/transfer/reserve, movement ledger
+├── trade/           # Parties, sales & purchase document flows, payments, ageing
+├── compliance/      # E-invoice, e-way bill, payment reminders (sandbox GSP + logging WhatsApp client)
+└── reports/         # Dashboard, sales/purchase registers, stock valuation
+```
+
+### Feature status
+
+| Module | Status |
+|---|---|
+| Onboarding, auth, users, RBAC, module switches | Implemented |
+| Inventory | Implemented |
+| Sales: quotation → order → delivery → invoice, credit notes, receipts, receivables ageing | Implemented |
+| Purchase: order (approval) → receipt → bill, debit notes, payments, payables ageing, reorder suggestions | Implemented |
+| E-invoice / e-way bill / reminders | Implemented against a **sandbox** GSP — no live provider yet |
+| Reports | Implemented |
+| Audit log | Not started (`V8` migration is a placeholder) |
+| Production, Accounts, CRM, HR | Not started (present only in `ModuleCode`) |
+
+---
+
+## Getting started
 
 ### Prerequisites
-- **Java 21 LTS**
-- **PostgreSQL 15+**
-- **Redis 7+**
+- Java 21
+- PostgreSQL 15+ with a database named `msmeerp_dev` (user/password `postgres`/`postgres` by default)
 
-### Run Database & Redis (Docker Compose optional)
-```bash
-docker run --name hms-postgres -e POSTGRES_DB=hms_db -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 -d postgres:16-alpine
-docker run --name hms-redis -p 6379:6379 -d redis:alpine
-```
-
-### Build & Run Locally
+### Run locally
 ```powershell
-# Compile & verify codebase
-.\mvnw.cmd clean compile
-
-# Run application
+$env:SPRING_PROFILES_ACTIVE = "dev"
 .\mvnw.cmd spring-boot:run
 ```
 
----
+Or create a `run-local.ps1` (gitignored) that sets these variables plus any AWS credentials.
+Flyway applies all pending migrations on startup.
 
-## 📖 API Documentation & Swagger UI
-Once running, interactive OpenAPI Swagger documentation is accessible at:
-- **Swagger UI**: [http://localhost:8080/api/v1/swagger-ui.html](http://localhost:8080/api/v1/swagger-ui.html)
-- **OpenAPI JSON**: [http://localhost:8080/api/v1/v3/api-docs](http://localhost:8080/api/v1/v3/api-docs)
+With the `dev` profile, mail is **logged instead of sent** unless `MAIL_ENABLED=true`, so OTPs,
+invite links and reset links appear in the console. Override the database with `DB_URL`,
+`DB_USER` and `DB_PASSWORD`.
 
----
-
-## 🔐 Multi-Tenancy & Headers
-All requests can supply the `X-Tenant-ID` header (defaults to `hms-main`):
-```http
-X-Tenant-ID: hms-main
-Authorization: Bearer <JWT_TOKEN>
+### Tests
+```powershell
+.\mvnw.cmd test
 ```
+
+---
+
+## API
+
+- Base URL: `http://localhost:8080/api/v1`
+- Tenant header: `X-Tenant-ID: <portalId>` (defaults to `msmeerp-main`)
+- Auth header: `Authorization: Bearer <JWT>`
+
+There is no Swagger UI. The controllers under `*/controller/` are the reference for endpoints.
+
+---
+
+## Deployment & operations
+
+- `Dockerfile` and `docker-compose.yml` run the backend container against an external RDS Postgres;
+  see `.env.example` for the required variables.
+- `docs/OPERATIONS.md` covers wildcard DNS/TLS, backups and error tracking.
